@@ -6,6 +6,7 @@
     <title>Garment POS - Retail Inventory & Analytics Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         /* Look and feel matches MedStock: light surface, teal accent, sidebar on desktop, bottom tabs on phones */
         :root {
@@ -133,6 +134,15 @@
         .owner-only { display: none !important; }
         body.is-owner .owner-only { display: revert !important; }
         body.is-owner .nav-btn.owner-only { display: flex !important; }
+
+        /* Camera scanner */
+        .cam-btn { white-space: nowrap; flex: 0 0 auto; }
+        #scanModal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 200; padding: 16px; }
+        #scanModal.open { display: flex; }
+        .scan-box { background: var(--surface); border-radius: var(--radius); padding: 1rem; width: min(440px, 100%); display: grid; gap: .75rem; }
+        #scanView { width: 100%; min-height: 220px; background: #000; border-radius: 8px; overflow: hidden; }
+        #scanView video { width: 100% !important; height: auto !important; display: block; }
+        #scanLast { min-height: 1.3em; font-weight: 600; }
 
         /* Barcode labels */
         .label-queue td { vertical-align: middle; }
@@ -282,6 +292,7 @@
                 <div class="card">
                     <div style="display: flex; gap: 8px;">
                         <input type="text" id="posSearch" placeholder="Search garment, brand or scan barcode..." oninput="renderCatalog()" onkeydown="scanToCart(event)">
+                        <button type="button" class="btn btn-indigo cam-btn" onclick="openScanner('pos')" title="Scan barcode with camera">📷 Scan</button>
                         <select id="posCat" onchange="renderCatalog()" style="width: 140px;">
                             <option value="">All Items</option>
                             <option value="Men">Men</option>
@@ -380,7 +391,10 @@
                         </div>
                         <div>
                             <label>Barcode / SKU</label>
-                            <input type="text" id="gBarcode" placeholder="Auto or Enter Barcode">
+                            <div style="display:flex; gap:6px;">
+                                <input type="text" id="gBarcode" placeholder="Auto or Enter Barcode">
+                                <button type="button" class="btn btn-light btn-sm cam-btn" onclick="openScanner('field')" title="Scan the tag's barcode">📷</button>
+                            </div>
                         </div>
                     </div>
                     <button type="submit" class="btn btn-indigo" style="width: 100%; padding: 10px;">Save Garment to Stock</button>
@@ -421,6 +435,7 @@
                             <option value="out">Out of stock</option>
                         </select>
                         <input type="text" id="invFilter" oninput="renderInventory()" placeholder="Filter stock..." style="width: 180px;">
+                        <button type="button" class="btn btn-indigo btn-sm cam-btn" onclick="openScanner('stock')" title="Find an item by scanning its barcode">📷 Scan</button>
                         <button type="button" class="btn btn-light btn-sm" onclick="labelShown()" title="Add a label for every piece of the items shown">🏷 Labels for shown</button>
                     </div>
                 </div>
@@ -601,6 +616,18 @@
 
     <div id="toast"></div>
     <div id="labelSheet"></div>
+
+    <div id="scanModal" onclick="if (event.target === this) closeScanner()">
+        <div class="scan-box">
+            <div class="flex-between">
+                <h3 id="scanTitle">Scan barcode</h3>
+                <button type="button" class="btn btn-light btn-sm" onclick="closeScanner()">Done</button>
+            </div>
+            <div id="scanView"></div>
+            <select id="scanCam" onchange="switchCamera()" style="display:none;"></select>
+            <div id="scanLast" class="muted">Hold the barcode inside the box.</div>
+        </div>
+    </div>
 
     <datalist id="brandList"></datalist>
 
@@ -1239,6 +1266,103 @@
             });
         }
 
+
+
+        // ================= CAMERA BARCODE SCANNER =================
+        // mode: 'pos' adds each scan to the cart and keeps scanning; 'stock' finds the item; 'field' fills the new-item barcode box
+        let scanner = null, scanMode = null, scanSeen = { code: '', at: 0 };
+
+        async function openScanner(mode) {
+            if (typeof Html5Qrcode !== 'function') { toast('Scanner did not load. Check the internet connection and refresh.', 5000); return; }
+            scanMode = mode;
+            document.getElementById('scanTitle').innerText = { pos: 'Scan to add to bill', stock: 'Scan to find in stock', field: 'Scan the tag' }[mode];
+            document.getElementById('scanLast').innerText = 'Hold the barcode inside the box.';
+            document.getElementById('scanModal').classList.add('open');
+            const F = Html5QrcodeSupportedFormats;
+            scanner = new Html5Qrcode('scanView', { formatsToSupport: [F.CODE_128, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_39, F.QR_CODE], verbose: false });
+            let cams = [];
+            try { cams = await Html5Qrcode.getCameras(); } catch (e) {
+                document.getElementById('scanLast').innerText = 'Camera blocked. Allow camera access for this site in the browser settings, then try again.';
+                return;
+            }
+            const sel = document.getElementById('scanCam');
+            sel.innerHTML = cams.map(c => `<option value="${esc(c.id)}">${esc(c.label || 'Camera')}</option>`).join('');
+            sel.style.display = cams.length > 1 ? '' : 'none';
+            let saved = null;
+            try { saved = localStorage.getItem('scanCam'); } catch (e) {}
+            const back = cams.find(c => /back|rear|environment/i.test(c.label));
+            const pick = cams.find(c => c.id === saved) || back || cams[cams.length - 1];
+            if (pick) sel.value = pick.id;
+            await startCamera(pick ? pick.id : { facingMode: 'environment' });
+        }
+
+        async function startCamera(cam) {
+            try {
+                await scanner.start(cam, { fps: 10, qrbox: (w, h) => ({ width: Math.floor(w * 0.85), height: Math.floor(Math.min(h, w) * 0.45) }) }, onScan, () => {});
+            } catch (e) {
+                document.getElementById('scanLast').innerText = 'Could not start the camera: ' + (e.message || e);
+            }
+        }
+
+        async function switchCamera() {
+            const id = document.getElementById('scanCam').value;
+            try { localStorage.setItem('scanCam', id); } catch (e) {}
+            if (scanner?.isScanning) await scanner.stop();
+            await startCamera(id);
+        }
+
+        async function closeScanner() {
+            document.getElementById('scanModal').classList.remove('open');
+            if (scanner) {
+                try { if (scanner.isScanning) await scanner.stop(); scanner.clear(); } catch (e) {}
+                scanner = null;
+            }
+        }
+
+        function beep() {
+            try {
+                const a = new (window.AudioContext || window.webkitAudioContext)();
+                const o = a.createOscillator();
+                o.frequency.value = 1200; o.connect(a.destination); o.start(); o.stop(a.currentTime + 0.08);
+            } catch (e) {}
+            if (navigator.vibrate) navigator.vibrate(60);
+        }
+
+        function onScan(text) {
+            const code = String(text).trim();
+            const now = Date.now();
+            // the camera sees the same tag many times a second; count it again only after it has been out of view for 1.5 s
+            if (code === scanSeen.code && now - scanSeen.at < 1500) { scanSeen.at = now; return; }
+            scanSeen = { code, at: now };
+            const hit = inventory.find(i => (i.barcode || '').toLowerCase() === code.toLowerCase());
+            const msg = document.getElementById('scanLast');
+            beep();
+
+            if (scanMode === 'pos') {
+                if (!hit) { msg.innerHTML = `<span style="color:var(--bad);">${esc(code)} is not in stock</span>`; return; }
+                if ((hit.stock || 0) <= 0) { msg.innerHTML = `<span style="color:var(--bad);">${esc(hit.name)} is out of stock</span>`; return; }
+                addToCart(hit.id);
+                const q = cart.find(c => c.id === hit.id)?.qty || 0;
+                msg.innerHTML = `<span style="color:var(--ok);">Added ${esc(hit.name)} (${esc(hit.size || '-')}) · ${q} in bill</span>`;
+                return;
+            }
+            if (scanMode === 'field') {
+                document.getElementById('gBarcode').value = code;
+                if (hit) toast(`Barcode ${code} is already used by ${hit.name}`, 4000);
+                closeScanner();
+                return;
+            }
+            // stock: show just that item
+            document.getElementById('invShow').value = '';
+            document.getElementById('invFilter').value = code;
+            renderInventory();
+            closeScanner();
+            if (!hit) {
+                toast(`${code} is not in stock yet. Fill the form above to add it.`, 4000);
+                document.getElementById('gBarcode').value = code;
+                document.getElementById('gBrand').focus();
+            }
+        }
 
         // ================= BARCODE LABELS =================
         // item id -> number of stickers to print
