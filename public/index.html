@@ -6,164 +6,193 @@
     <title>Garment POS - Retail Inventory & Analytics Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: #f8fafc; color: #1e293b; min-height: 100vh; display: flex; flex-direction: column; }
+        /* Look and feel matches MedStock: light surface, teal accent, sidebar on desktop, bottom tabs on phones */
+        :root {
+            --bg: #f6f7f9; --surface: #ffffff; --text: #17202a; --muted: #64707d; --border: #e2e6ea;
+            --accent: #0f766e; --accent-ink: #ffffff; --warn: #b45309; --bad: #b91c1c; --ok: #15803d;
+            --radius: 10px;
+            color-scheme: light;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0f1418; --surface: #182026; --text: #e6eaee; --muted: #93a0ad; --border: #2a343c;
+                --accent: #2dd4bf; --accent-ink: #062a26; --warn: #f59e0b; --bad: #f87171; --ok: #4ade80;
+                color-scheme: dark;
+            }
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); }
+        body { background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+        h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+        h3 { font-size: 1.05rem; }
+        a { color: var(--accent); }
+        .soft-bad { background: color-mix(in srgb, var(--bad) 14%, transparent); }
+        .soft-ok { background: color-mix(in srgb, var(--ok) 14%, transparent); }
 
-        /* Navigation Header */
-        header { background: #1e1b4b; color: #ffffff; padding: 12px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; }
-        .logo-title { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
-        .logo-sub { font-size: 11px; color: #a5b4fc; }
-        .nav-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-        .nav-btn { background: #312e81; color: #c7d2fe; border: none; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
-        .nav-btn:hover { background: #3730a3; color: #ffffff; }
-        .nav-btn.active { background: #4f46e5; color: #ffffff; }
-        .user-chip { font-size: 11px; color: #a5b4fc; }
-        .head-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        /* Shell */
+        .shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+        .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 1rem; display: flex; flex-direction: column; gap: .75rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+        .brand { font-weight: 800; font-size: 1.2rem; color: var(--accent); }
+        .store-name { font-size: .85rem; color: var(--muted); }
+        .nav-group { display: grid; gap: .25rem; }
+        .nav-btn { background: none; border: 0; padding: .55rem .7rem; border-radius: 8px; color: var(--text); font: inherit; text-align: left; cursor: pointer; display: flex; gap: .5rem; align-items: center; }
+        .nav-btn:hover { background: var(--bg); }
+        .nav-btn.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-weight: 600; }
+        .side-foot { margin-top: auto; display: grid; gap: .4rem; }
+        .user-chip { font-size: .8rem; color: var(--muted); word-break: break-all; }
+        .link-btn { background: none; border: 0; color: var(--accent); font: inherit; font-weight: 500; cursor: pointer; padding: .3rem 0; text-align: left; }
+        .topbar { display: none; }
+        main.content { padding: 1.5rem; max-width: 1200px; width: 100%; min-width: 0; }
+        #pageTitle { margin-bottom: 1rem; }
 
-        /* Phone: bottom tab bar like MedStock */
+        /* Phone: bottom tab bar */
         @media (max-width: 760px) {
-            header { padding: 10px 16px; }
-            #mainNav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1b4b; padding: 6px 4px; justify-content: space-around; flex-wrap: nowrap; overflow-x: auto; gap: 2px; z-index: 60; }
-            #mainNav .nav-btn { padding: 6px 8px; font-size: 10px; white-space: nowrap; flex: 0 0 auto; }
-            main { padding-bottom: 70px !important; }
+            .shell { grid-template-columns: 1fr; }
+            .sidebar { position: fixed; bottom: 0; top: auto; left: 0; right: 0; height: auto; padding: .25rem; border-right: 0; border-top: 1px solid var(--border); z-index: 60; overflow: visible; }
+            .sidebar .brand, .sidebar .store-name, .side-foot { display: none; }
+            .nav-group { display: flex; overflow-x: auto; gap: 0; }
+            .nav-btn { flex: 0 0 auto; min-width: 64px; flex-direction: column; gap: 0; font-size: .7rem; padding: .4rem; text-align: center; white-space: nowrap; }
+            .nav-btn span:first-child { font-size: 1.2rem; }
+            .topbar { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .6rem 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; }
+            main.content { padding: 16px 16px 84px; }
             .hide-sm { display: none; }
         }
 
-        /* Layout & Cards */
-        main { max-width: 1240px; width: 100%; margin: 20px auto; padding: 0 16px; flex: 1; }
+        /* Layout & cards */
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
-        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-        h3 { font-size: 14px; }
-        .muted { color: #64748b; font-size: 12px; }
+        .muted { color: var(--muted); font-size: .85rem; }
+        .center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 
-        /* Grid System */
-        .grid-5 { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 16px; }
-        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .grid-pos { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }
+        .grid-5 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-pos { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
         @media (max-width: 900px) { .grid-pos, .grid-2 { grid-template-columns: 1fr; } }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin-bottom: .75rem; }
+        @media (max-width: 760px) { .grid-5 { grid-template-columns: repeat(2, 1fr); } }
 
-        /* Metric Cards */
-        .metric-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; border-left: 4px solid #4f46e5; cursor: default; }
+        /* Tiles (dashboard numbers) */
+        .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; color: var(--muted); }
         .metric-card.clickable { cursor: pointer; }
-        .metric-card.purple { border-left-color: #7c3aed; background: #faf5ff; }
-        .metric-card.green { border-left-color: #10b981; }
-        .metric-card.blue { border-left-color: #0284c7; }
-        .metric-card.amber { border-left-color: #f59e0b; }
-        .metric-card.red { border-left-color: #e11d48; }
-        .metric-title { font-size: 11px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-bottom: 6px; }
-        .metric-value { font-size: 24px; font-weight: 800; color: #0f172a; }
-        .metric-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+        .metric-card.clickable:hover { border-color: var(--accent); }
+        .metric-title { font-size: .85rem; margin-bottom: .2rem; }
+        .metric-value { font-size: 1.8rem; font-weight: 700; color: var(--text); line-height: 1.2; overflow-wrap: anywhere; }
+        .metric-card.red .metric-value { color: var(--bad); }
+        .metric-card.amber .metric-value { color: var(--warn); }
+        .metric-sub { font-size: .8rem; color: var(--muted); margin-top: .2rem; }
+        .type-tile { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: .9rem; }
 
         /* Lists */
         .list { list-style: none; max-height: 320px; overflow-y: auto; }
-        .list li { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
-        .list li span { color: #64748b; text-align: right; }
+        .list li { display: flex; justify-content: space-between; gap: 8px; padding: .6rem 0; border-bottom: 1px solid var(--border); font-size: .9rem; }
+        .list li span { color: var(--muted); text-align: right; font-size: .85rem; }
 
-        /* Form Controls */
-        label { display: block; font-size: 11px; font-weight: 600; color: #475569; margin-bottom: 4px; }
-        input, select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; outline: none; background: #fff; }
-        input[type=checkbox], input[type=radio] { width: auto; }
-        input:focus, select:focus { border-color: #4f46e5; }
-        .btn { padding: 8px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
-        .btn:disabled { opacity: 0.5; cursor: wait; }
-        .btn-indigo { background: #4f46e5; color: #ffffff; }
-        .btn-indigo:hover { background: #4338ca; }
-        .btn-emerald { background: #10b981; color: #ffffff; }
-        .btn-emerald:hover { background: #059669; }
-        .btn-danger { background: #ef4444; color: #ffffff; }
-        .btn-light { background: #e2e8f0; }
-        .btn-sm { padding: 4px 8px; font-size: 11px; }
+        /* Forms and buttons */
+        label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .3rem; }
+        input, select { width: 100%; padding: .55rem .65rem; border: 1px solid var(--border); border-radius: 8px; font: inherit; background: var(--surface); color: var(--text); outline: none; }
+        input[type=checkbox], input[type=radio] { width: auto; accent-color: var(--accent); }
+        input:focus, select:focus { border-color: var(--accent); }
+        .btn { padding: .6rem 1rem; border: 0; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+        .btn:disabled { opacity: .5; cursor: wait; }
+        .btn-indigo, .btn-emerald { background: var(--accent); color: var(--accent-ink); }
+        .btn-indigo:hover, .btn-emerald:hover { filter: brightness(1.08); }
+        .btn-light { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+        .btn-danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
+        .btn-sm { padding: .3rem .6rem; font-size: .8rem; }
 
-        /* POS Catalog Grid */
-        .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 480px; overflow-y: auto; margin-top: 10px; }
-        .catalog-item { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; cursor: pointer; transition: 0.15s; background: #fff; }
-        .catalog-item:hover { border-color: #4f46e5; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        /* POS catalog */
+        .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; max-height: 480px; overflow-y: auto; margin-top: .75rem; }
+        .catalog-item { border: 1px solid var(--border); border-radius: 8px; padding: .65rem; cursor: pointer; background: var(--surface); font-size: .85rem; }
+        .catalog-item:hover { border-color: var(--accent); }
 
-        /* Data Tables */
-        .table-wrap { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
-        th { background: #f8fafc; padding: 10px; border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 700; }
-        td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
-        tr:hover { background: #f8fafc; }
-        .price-input { width: 80px; padding: 4px 6px; font-weight: bold; }
-        .small-input { width: 60px; padding: 4px 6px; }
-        .note-flag { display: inline-block; margin-top: 3px; font-size: 10px; color: #b45309; background: #fef3c7; padding: 1px 5px; border-radius: 4px; }
-        .pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: #f1f5f9; color: #475569; }
-        .pill.draft { background: #fef3c7; color: #b45309; }
-        .pill.committed { background: #dcfce7; color: #16a34a; }
-        .plus { color: #16a34a; font-weight: 700; }
-        .minus { color: #e11d48; font-weight: 700; }
+        /* Tables */
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+        table { width: 100%; border-collapse: collapse; font-size: .9rem; text-align: left; }
+        th { padding: .6rem .75rem; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; font-size: .8rem; }
+        td { padding: .6rem .75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        tbody tr:hover { background: var(--bg); }
+        .price-input { width: 90px; padding: .3rem .45rem; font-weight: 700; }
+        .small-input { width: 64px; padding: .3rem .45rem; }
+        .note-flag { display: inline-block; margin-top: 3px; font-size: .72rem; color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); padding: 1px 6px; border-radius: 99px; }
+        .pill { display: inline-block; font-size: .75rem; padding: .1rem .5rem; border-radius: 99px; background: var(--bg); border: 1px solid var(--border); color: var(--muted); }
+        .pill.draft { color: var(--warn); }
+        .pill.committed { color: var(--ok); }
+        .plus { color: var(--ok); font-weight: 700; }
+        .minus { color: var(--bad); font-weight: 700; }
 
-        /* Login */
-        #loginScreen { max-width: 360px; margin: 60px auto; }
-        #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1e1b4b; color: #fff; padding: 10px 16px; border-radius: 6px; font-size: 12px; display: none; z-index: 100; max-width: calc(100% - 32px); }
-        #syncBadge { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #064e3b; color: #6ee7b7; }
-        #syncBadge.off { background: #7f1d1d; color: #fecaca; }
-        .owner-only { display: none; }
-        body.is-owner .owner-only { display: revert; }
+        /* Login, toast, badges */
+        .auth { width: min(380px, 100%); display: grid; gap: .9rem; margin: 0; }
+        .auth label { margin: 0; display: grid; gap: .3rem; }
+        #toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: .6rem 1rem; border-radius: 8px; font-size: .85rem; display: none; z-index: 100; max-width: calc(100% - 32px); }
+        .sync { font-size: .75rem; padding: .1rem .5rem; border-radius: 99px; border: 1px solid var(--border); color: var(--ok); }
+        .sync.off { color: var(--bad); }
+        .owner-only { display: none !important; }
+        body.is-owner .owner-only { display: revert !important; }
+        body.is-owner .nav-btn.owner-only { display: flex !important; }
 
         @media print {
             body * { visibility: hidden; }
-            #receiptArea, #receiptArea * { visibility: visible; }
+            #receiptArea, #receiptArea * { visibility: visible; color: #000 !important; }
             #receiptArea { position: absolute; left: 0; top: 0; width: 78mm; padding: 4px; font-size: 11px; background: #fff; }
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <div>
-            <div class="logo-title">GARMENT STORE POS</div>
-            <div class="logo-sub">Clothing Retail, Fast POS & Executive Analytics</div>
-        </div>
-        <nav class="nav-group" id="mainNav" style="display:none;">
-            <button type="button" class="nav-btn active" id="btn-dash" onclick="openView('dash')">📊 Dashboard</button>
-            <button type="button" class="nav-btn" id="btn-pos" onclick="openView('pos')">🛒 POS Billing</button>
-            <button type="button" class="nav-btn" id="btn-inventory" onclick="openView('inventory')">📦 Stock</button>
-            <button type="button" class="nav-btn" id="btn-purchases" onclick="openView('purchases')">🧾 Purchases</button>
-            <button type="button" class="nav-btn" id="btn-customers" onclick="openView('customers')">👥 Customers</button>
-            <button type="button" class="nav-btn" id="btn-history" onclick="openView('history')">📜 Sales</button>
-            <button type="button" class="nav-btn" id="btn-movements" onclick="openView('movements')">🔁 Stock Log</button>
-            <button type="button" class="nav-btn" id="btn-backup" onclick="openView('backup')">💾 Backup</button>
-            <button type="button" class="nav-btn owner-only" id="btn-staff" onclick="openView('staff')">🔐 Staff</button>
-        </nav>
-        <div class="head-right" id="headRight" style="display:none;">
-            <span id="syncBadge">● Online</span>
-            <span class="user-chip" id="userEmail"></span>
-            <button type="button" class="nav-btn" onclick="signOut()">Log out</button>
-        </div>
-    </header>
-
     <!-- ================= LOGIN ================= -->
-    <section id="loginScreen" class="card" style="display:none;">
-        <h3 style="font-size: 15px; margin-bottom: 4px;">Sign in to your store</h3>
-        <p style="font-size: 11px; color: #64748b; margin-bottom: 14px;">Only staff added by the owner can see stock and bills.</p>
-        <form onsubmit="signIn(event)">
-            <label>Email</label>
-            <input type="email" id="loginEmail" required autocomplete="username" style="margin-bottom: 10px;">
-            <label>Password</label>
-            <input type="password" id="loginPass" required autocomplete="current-password" minlength="6" style="margin-bottom: 14px;">
-            <button type="submit" class="btn btn-indigo" style="width: 100%; padding: 10px;" id="loginBtn">Sign in</button>
+    <div class="center" id="loginScreen" style="display:none;">
+        <form class="card auth" onsubmit="signIn(event)">
+            <h1 style="margin:0; color: var(--accent);">Garment POS</h1>
+            <p class="muted">Clothing store billing and stock. Only staff added by the owner can sign in.</p>
+            <label>Email<input type="email" id="loginEmail" required autocomplete="username"></label>
+            <label>Password<input type="password" id="loginPass" required autocomplete="current-password" minlength="6"></label>
+            <p id="loginMsg" class="muted" style="color: var(--bad);"></p>
+            <button type="submit" class="btn btn-indigo" id="loginBtn">Sign in</button>
+            <p class="muted" style="text-align:center;">
+                New here? <a href="javascript:void(0)" onclick="signUp()">Create account</a> ·
+                <a href="javascript:void(0)" onclick="resetPassword()">Forgot password</a>
+            </p>
         </form>
-        <p style="font-size: 11px; color: #64748b; margin-top: 12px; text-align: center;">
-            First time? <a href="javascript:void(0)" onclick="signUp()">Create account</a> ·
-            <a href="javascript:void(0)" onclick="resetPassword()">Forgot password</a>
-        </p>
-        <p id="loginMsg" style="font-size: 11px; color: #e11d48; margin-top: 10px; text-align: center;"></p>
-    </section>
+    </div>
 
-    <main id="appMain" style="display:none;">
+    <div class="shell" id="appShell" style="display:none;">
+        <aside class="sidebar">
+            <div class="brand">Garment POS</div>
+            <div class="store-name">Clothing store</div>
+            <nav class="nav-group" id="mainNav">
+                <button type="button" class="nav-btn active" id="btn-dash" onclick="openView('dash')"><span aria-hidden="true">📊</span><span>Dashboard</span></button>
+                <button type="button" class="nav-btn" id="btn-pos" onclick="openView('pos')"><span aria-hidden="true">🛒</span><span>POS Billing</span></button>
+                <button type="button" class="nav-btn" id="btn-inventory" onclick="openView('inventory')"><span aria-hidden="true">📦</span><span>Stock</span></button>
+                <button type="button" class="nav-btn" id="btn-purchases" onclick="openView('purchases')"><span aria-hidden="true">🧾</span><span>Purchases</span></button>
+                <button type="button" class="nav-btn" id="btn-customers" onclick="openView('customers')"><span aria-hidden="true">👥</span><span>Customers</span></button>
+                <button type="button" class="nav-btn" id="btn-history" onclick="openView('history')"><span aria-hidden="true">📜</span><span>Sales</span></button>
+                <button type="button" class="nav-btn" id="btn-movements" onclick="openView('movements')"><span aria-hidden="true">🔁</span><span>Stock Log</span></button>
+                <button type="button" class="nav-btn" id="btn-backup" onclick="openView('backup')"><span aria-hidden="true">💾</span><span>Backup</span></button>
+                <button type="button" class="nav-btn owner-only" id="btn-staff" onclick="openView('staff')"><span aria-hidden="true">🔐</span><span>Staff</span></button>
+            </nav>
+            <div class="side-foot">
+                <span class="sync" id="syncBadge">● Online</span>
+                <span class="user-chip" id="userEmail"></span>
+                <button type="button" class="link-btn" onclick="signOut()">Sign out</button>
+            </div>
+        </aside>
+        <div style="min-width:0;">
+        <div class="topbar">
+            <strong style="color: var(--accent);">Garment POS</strong>
+            <span style="display:flex; gap:.5rem; align-items:center;"><span class="sync" id="syncBadgeSm">● Online</span><button type="button" class="link-btn" onclick="signOut()">Sign out</button></span>
+        </div>
+    <main id="appMain" class="content">
+        <h1 id="pageTitle">Dashboard</h1>
 
         <!-- ================= 1. EXECUTIVE DASHBOARD ================= -->
         <section id="view-dash" class="tab-panel active">
             <div class="grid-5">
                 <div class="metric-card purple">
                     <div class="metric-title">Total Quantity Available</div>
-                    <div class="metric-value" id="dashTotalPieces" style="color: #6d28d9;">0 Pcs</div>
+                    <div class="metric-value" id="dashTotalPieces">0 Pcs</div>
                     <div class="metric-sub" id="dashTotalStyles">Across 0 Garment Styles</div>
                 </div>
                 <div class="metric-card blue">
@@ -209,9 +238,9 @@
                 <div class="flex-between" style="margin-bottom: 14px;">
                     <div>
                         <h3 style="font-weight: 700;">Apparel Category Piece Counting & Valuations</h3>
-                        <p style="font-size: 11px; color: #64748b; margin-top: 2px;">Real-time stock quantity counts and selling value by garment type</p>
+                        <p style="font-size: 11px; color: var(--muted); margin-top: 2px;">Real-time stock quantity counts and selling value by garment type</p>
                     </div>
-                    <span style="font-size: 11px; font-weight: bold; background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 20px;" id="dashTotalBadge">0 Total Pieces In Stock</span>
+                    <span style="font-size: 11px; font-weight: bold; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); padding: 4px 10px; border-radius: 20px;" id="dashTotalBadge">0 Total Pieces In Stock</span>
                 </div>
                 <div class="grid-4" id="typeCards"></div>
             </div>
@@ -241,9 +270,9 @@
 
                 <div class="card flex-between" style="flex-direction: column; align-items: stretch; gap: 12px;">
                     <div>
-                        <div class="flex-between" style="border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+                        <div class="flex-between" style="border-bottom: 1px solid var(--border); padding-bottom: 8px;">
                             <strong style="font-size: 14px;">Active Cart</strong>
-                            <a href="javascript:void(0)" onclick="clearCart()" style="font-size: 11px; color: #ef4444; text-decoration: none;">Empty Cart</a>
+                            <a href="javascript:void(0)" onclick="clearCart()" style="font-size: 11px; color: var(--bad); text-decoration: none;">Empty Cart</a>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0;">
                             <input type="tel" id="custPhone" placeholder="Mobile / WhatsApp" oninput="fillCustomerFromPhone()" list="custPhoneList">
@@ -254,18 +283,18 @@
                         <div id="cartList" style="max-height: 220px; overflow-y: auto; font-size: 12px;"></div>
                     </div>
 
-                    <div style="border-top: 1px solid #e2e8f0; padding-top: 10px;">
-                        <div class="flex-between" style="font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                    <div style="border-top: 1px solid var(--border); padding-top: 10px;">
+                        <div class="flex-between" style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">
                             <span>Subtotal:</span>
                             <span id="subVal">₹0</span>
                         </div>
-                        <div class="flex-between" style="font-size: 12px; color: #64748b; margin-bottom: 6px;">
+                        <div class="flex-between" style="font-size: 12px; color: var(--muted); margin-bottom: 6px;">
                             <span>Discount Flat (₹):</span>
                             <input type="number" id="discVal" value="0" min="0" oninput="calcTotals()" style="width: 70px; text-align: right; padding: 4px;">
                         </div>
-                        <div class="flex-between" style="font-size: 15px; font-weight: bold; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+                        <div class="flex-between" style="font-size: 15px; font-weight: bold; border-top: 1px dashed var(--border); padding-top: 6px;">
                             <span>Total Payable:</span>
-                            <span id="totalVal" style="color: #4f46e5;">₹0</span>
+                            <span id="totalVal" style="color: var(--accent);">₹0</span>
                         </div>
 
                         <div style="display: flex; gap: 12px; margin: 10px 0; font-size: 12px;">
@@ -336,7 +365,7 @@
 
             <div class="card">
                 <div class="flex-between" style="margin-bottom: 12px;">
-                    <h3>Store Stock List (<span id="invCount">0</span> styles | <span id="invPiecesCount" style="color:#4f46e5; font-weight:800;">0</span> Pieces)</h3>
+                    <h3>Store Stock List (<span id="invCount">0</span> styles | <span id="invPiecesCount" style="color:var(--accent); font-weight:800;">0</span> Pieces)</h3>
                     <div style="display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
                         <select id="invShow" onchange="renderInventory()" style="width:auto;">
                             <option value="">All items</option>
@@ -412,7 +441,7 @@
                     <button type="button" class="btn btn-light" onclick="addPurchaseLine()" id="pAddLine">+ Add line</button>
                     <button type="button" class="btn btn-light" onclick="addSizeRun()" id="pAddRun">+ Add size set (e.g. M, L, XL)</button>
                 </div>
-                <div class="flex-between" style="margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                <div class="flex-between" style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
                     <strong id="pTotals">0 pieces</strong>
                     <div style="display:flex; gap:8px; flex-wrap: wrap;">
                         <button type="button" class="btn btn-danger owner-only" onclick="deletePurchase()" id="pDelete">Delete draft</button>
@@ -488,7 +517,7 @@
         <section id="view-backup" class="tab-panel">
             <div class="card">
                 <h3 style="margin-bottom: 10px;">Store Backup & Excel Reports</h3>
-                <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Your data is saved online automatically. Download copies any time as spreadsheets.</p>
+                <p style="font-size: 12px; color: var(--muted); margin-bottom: 16px;">Your data is saved online automatically. Download copies any time as spreadsheets.</p>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                     <button type="button" class="btn btn-emerald" onclick="exportInventoryCSV()" style="padding: 10px 18px;">Download Inventory Report (Excel CSV)</button>
                     <button type="button" class="btn btn-indigo" onclick="exportSalesCSV()" style="padding: 10px 18px;">Download Sales Report (Excel CSV)</button>
@@ -497,7 +526,7 @@
             </div>
             <div class="card">
                 <h3 style="margin-bottom: 10px;">Import Stock from CSV</h3>
-                <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">Use a CSV with columns Barcode, Name, Brand, Type, Category, Size, Color, Selling Price, Stock Quantity (Pieces). Rows with a barcode that already exists update that item; new barcodes are added.</p>
+                <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Use a CSV with columns Barcode, Name, Brand, Type, Category, Size, Color, Selling Price, Stock Quantity (Pieces). Rows with a barcode that already exists update that item; new barcodes are added.</p>
                 <input type="file" id="importFile" accept=".csv,text/csv" style="max-width: 320px;">
                 <button type="button" class="btn btn-indigo" onclick="importCSV()" style="margin-top: 10px;" id="importBtn">Import</button>
                 <p id="importMsg" style="font-size: 12px; margin-top: 8px;"></p>
@@ -519,6 +548,8 @@
         </section>
 
     </main>
+        </div>
+    </div>
 
     <div id="toast"></div>
 
@@ -631,10 +662,8 @@
 
         async function onSession(session) {
             const loggedIn = !!session;
-            document.getElementById('loginScreen').style.display = loggedIn ? 'none' : 'block';
-            document.getElementById('appMain').style.display = loggedIn ? 'block' : 'none';
-            document.getElementById('mainNav').style.display = loggedIn ? 'flex' : 'none';
-            document.getElementById('headRight').style.display = loggedIn ? 'flex' : 'none';
+            document.getElementById('loginScreen').style.display = loggedIn ? 'none' : 'grid';
+            document.getElementById('appShell').style.display = loggedIn ? 'grid' : 'none';
             if (!loggedIn) {
                 if (channel) { db.removeChannel(channel); channel = null; }
                 inventory = []; sales = []; customers = []; purchases = []; movements = []; cart = [];
@@ -731,10 +760,12 @@
                     refreshActiveView();
                 })
                 .subscribe(status => {
-                    const b = document.getElementById('syncBadge');
                     const ok = status === 'SUBSCRIBED';
-                    b.classList.toggle('off', !ok);
-                    b.innerText = ok ? '● Online' : '● Reconnecting…';
+                    ['syncBadge', 'syncBadgeSm'].forEach(id => {
+                        const b = document.getElementById(id);
+                        b.classList.toggle('off', !ok);
+                        b.innerText = ok ? '● Online' : '● Reconnecting…';
+                    });
                 });
         }
 
@@ -765,6 +796,7 @@
             const activeBtn = document.getElementById('btn-' + name);
             if (activeEl) activeEl.classList.add('active');
             if (activeBtn) activeBtn.classList.add('active');
+            if (activeBtn) document.getElementById('pageTitle').innerText = activeBtn.lastElementChild.innerText;
 
             if (name === 'purchases') await loadPurchases();
             if (name === 'movements') await loadMovements();
@@ -825,10 +857,10 @@
             document.getElementById('typeCards').innerHTML = Object.entries(byType)
                 .sort((a, b) => b[1].pcs - a[1].pcs)
                 .map(([t, v], i) => `
-                    <div style="background: #f1f5f9; padding: 14px; border-radius: 8px; border-top: 3px solid ${colors[i % colors.length]};">
-                        <div style="font-size: 11px; font-weight: bold; color: #475569; text-transform: uppercase;">${esc(t)}</div>
-                        <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; margin: 4px 0;">${v.pcs} Pieces</div>
-                        <div style="font-size: 11px; color: #64748b;">Selling Value: ${inr(v.val)}</div>
+                    <div class="type-tile" style="border-top: 3px solid ${colors[i % colors.length]};">
+                        <div style="font-size: 11px; font-weight: bold; color: var(--muted); text-transform: uppercase;">${esc(t)}</div>
+                        <div style="font-size: 22px; font-weight: 800; color: var(--text); margin: 4px 0;">${v.pcs} Pieces</div>
+                        <div style="font-size: 11px; color: var(--muted);">Selling Value: ${inr(v.val)}</div>
                     </div>`).join('');
         }
 
@@ -847,7 +879,7 @@
             const filtered = inventory.filter(i => matches(i, query) && (!cat || i.category === cat)).slice(0, 300);
 
             if (filtered.length === 0) {
-                container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 20px 0;">No garments found</p>';
+                container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: var(--muted); padding: 20px 0;">No garments found</p>';
                 return;
             }
 
@@ -859,12 +891,12 @@
                 div.onclick = () => { if (!outOfStock) addToCart(it.id); };
                 div.innerHTML = `
                     <div class="flex-between" style="font-size: 10px; margin-bottom: 4px;">
-                        <span style="background: #f1f5f9; padding: 1px 4px; border-radius: 4px; font-weight: bold;">${esc(it.size || 'Free')}</span>
-                        <span style="font-weight: bold; color: ${isLow(it) ? '#ef4444' : '#10b981'};">Stock: ${it.stock || 0}</span>
+                        <span style="background: var(--bg); border: 1px solid var(--border); padding: 1px 4px; border-radius: 4px; font-weight: bold;">${esc(it.size || 'Free')}</span>
+                        <span style="font-weight: bold; color: ${isLow(it) ? 'var(--bad)' : 'var(--ok)'};">Stock: ${it.stock || 0}</span>
                     </div>
                     <div style="font-weight: bold; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(it.name)}</div>
-                    <div style="font-size: 10px; color: #94a3b8;">${esc(it.category)} · ${esc(it.color || '-')}</div>
-                    <div style="color: #4f46e5; font-weight: bold; font-size: 13px; margin-top: 4px;">${inr(it.price)}</div>
+                    <div style="font-size: 10px; color: var(--muted);">${esc(it.category)} · ${esc(it.color || '-')}</div>
+                    <div style="color: var(--accent); font-weight: bold; font-size: 13px; margin-top: 4px;">${inr(it.price)}</div>
                 `;
                 container.appendChild(div);
             });
@@ -888,7 +920,7 @@
             const hint = document.getElementById('custHint');
             if (!c) { hint.innerText = ''; return; }
             document.getElementById('custName').value = c.name;
-            hint.innerHTML = `Returning customer · ${c.bills} bill(s)` + (c.due > 0 ? ` · <b style="color:#e11d48;">Udhaar due ${inr(c.due)}</b>` : '');
+            hint.innerHTML = `Returning customer · ${c.bills} bill(s)` + (c.due > 0 ? ` · <b style="color:var(--bad);">Udhaar due ${inr(c.due)}</b>` : '');
         }
 
         function addToCart(id) {
@@ -928,7 +960,7 @@
             list.innerHTML = '';
 
             if (cart.length === 0) {
-                list.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 30px 0;">Cart is empty</p>';
+                list.innerHTML = '<p style="text-align: center; color: var(--muted); padding: 30px 0;">Cart is empty</p>';
                 calcTotals();
                 return;
             }
@@ -937,11 +969,11 @@
                 const row = document.createElement('div');
                 row.className = 'flex-between';
                 row.style.padding = '6px 0';
-                row.style.borderBottom = '1px solid #f1f5f9';
+                row.style.borderBottom = '1px solid var(--border)';
                 row.innerHTML = `
                     <div>
                         <div style="font-weight: bold;">${esc(it.name)}</div>
-                        <div style="font-size: 10px; color: #94a3b8;">${esc(it.size)} | ${inr(it.price)}</div>
+                        <div style="font-size: 10px; color: var(--muted);">${esc(it.size)} | ${inr(it.price)}</div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 4px;">
                         <button type="button" class="btn btn-sm btn-light" onclick="updateCartQty(${it.id}, -1)">-</button>
@@ -1119,14 +1151,14 @@
             const filtered = inventory.filter(i => matches(i, query) && keep(i));
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">No matching stock items</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">No matching stock items</td></tr>';
                 return;
             }
 
             filtered.slice(0, 500).forEach(it => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td class="hide-sm" style="font-family: monospace; font-weight: bold; color: #64748b;">${esc(it.barcode || '-')}</td>
+                    <td class="hide-sm" style="font-family: monospace; font-weight: bold; color: var(--muted);">${esc(it.barcode || '-')}</td>
                     <td style="font-weight: bold;">${esc(it.name || 'Garment')}
                         ${it.note ? `<br><span class="note-flag">⚠ ${esc(it.note)}</span> <a href="javascript:void(0)" style="font-size:10px;" onclick="clearNote(${it.id})">mark checked</a>` : ''}</td>
                     <td>
@@ -1137,7 +1169,7 @@
                     <td>${esc(it.size || '-')} / ${esc(it.color || '-')}</td>
                     <td><input class="price-input" type="number" min="1" value="${it.price}" onchange="setPrice(${it.id}, this.value)"></td>
                     <td>
-                        <span style="background: ${isLow(it) ? '#ffe4e6; color: #e11d48;' : '#dcfce7; color: #16a34a;'}; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+                        <span style="background: color-mix(in srgb, ${isLow(it) ? 'var(--bad)' : 'var(--ok)'} 14%, transparent); color: ${isLow(it) ? 'var(--bad)' : 'var(--ok)'}; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
                             ${it.stock || 0} Pcs
                         </span>
                     </td>
@@ -1157,7 +1189,7 @@
             if (editingPurchase) return;
             const tbody = document.getElementById('purchaseTable');
             if (purchases.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">No supplier bills yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:20px;">No supplier bills yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = purchases.map(p => `
@@ -1357,7 +1389,7 @@
             const rows = customers.filter(c => (!owes || c.due > 0) && [c.name, c.phone].some(v => (v || '').toLowerCase().includes(q)));
             const tbody = document.getElementById('customerTable');
             if (rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">No customers found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:20px;">No customers found</td></tr>';
                 return;
             }
             tbody.innerHTML = rows.slice(0, 500).map(c => `
@@ -1366,7 +1398,7 @@
                     <td>${esc(c.phone || '—')}</td>
                     <td class="hide-sm">${c.bills}</td>
                     <td class="hide-sm">${day(c.last_visit)}</td>
-                    <td style="font-weight:bold; color:${c.due > 0 ? '#e11d48' : '#16a34a'};">${c.due > 0 ? inr(c.due) : '—'}</td>
+                    <td style="font-weight:bold; color:${c.due > 0 ? 'var(--bad)' : 'var(--ok)'};">${c.due > 0 ? inr(c.due) : '—'}</td>
                     <td style="text-align:right;"><button type="button" class="btn btn-sm btn-light" onclick="openCustomer(${c.id})">Open</button></td>
                 </tr>`).join('');
         }
@@ -1384,7 +1416,7 @@
             box.innerHTML = `
                 <div class="flex-between" style="margin-bottom: 10px;">
                     <h3>${esc(c.name)} · ${esc(c.phone || '')}</h3>
-                    <span style="font-weight:bold; color:${c.due > 0 ? '#e11d48' : '#16a34a'};">Udhaar due: ${inr(Math.max(c.due, 0))}</span>
+                    <span style="font-weight:bold; color:${c.due > 0 ? 'var(--bad)' : 'var(--ok)'};">Udhaar due: ${inr(Math.max(c.due, 0))}</span>
                 </div>
                 ${c.due > 0 ? `
                 <form onsubmit="receiveUdhaar(event, ${c.id})" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 14px;">
@@ -1437,7 +1469,7 @@
             tbody.innerHTML = '';
 
             if (sales.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">No invoices found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--muted); padding: 20px;">No invoices found</td></tr>';
                 return;
             }
 
@@ -1445,10 +1477,10 @@
                 const tr = document.createElement('tr');
                 const itemsStr = inv.items.map(i => `${i.name} (${i.size}) x ${i.qty}`).join(', ');
                 tr.innerHTML = `
-                    <td style="font-family: monospace; font-weight: bold; color: #4f46e5;">${esc(inv.bill_no)}</td>
-                    <td style="color: #64748b; font-size: 11px;">${when(inv.created_at)}</td>
+                    <td style="font-family: monospace; font-weight: bold; color: var(--accent);">${esc(inv.bill_no)}</td>
+                    <td style="color: var(--muted); font-size: 11px;">${when(inv.created_at)}</td>
                     <td><strong>${esc(inv.customer)}</strong></td>
-                    <td class="hide-sm" style="font-size: 11px; color: #475569;">${esc(itemsStr)}</td>
+                    <td class="hide-sm" style="font-size: 11px; color: var(--muted);">${esc(itemsStr)}</td>
                     <td><span class="pill">${esc(inv.pay_mode)}</span></td>
                     <td style="font-weight: bold;">${inr(inv.total)}</td>
                     <td style="text-align: right;">
@@ -1477,17 +1509,17 @@
             const rows = movements.filter(m => [m.item_name, m.reason, m.by_email].some(v => (v || '').toLowerCase().includes(q)));
             const tbody = document.getElementById('movementTable');
             if (rows.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">No stock changes yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:20px;">No stock changes yet</td></tr>';
                 return;
             }
             tbody.innerHTML = rows.map(m => `
                 <tr>
-                    <td style="font-size:11px; color:#64748b; white-space:nowrap;">${when(m.created_at)}</td>
+                    <td style="font-size:11px; color:var(--muted); white-space:nowrap;">${when(m.created_at)}</td>
                     <td><b>${esc(m.item_name)}</b></td>
                     <td class="${m.change > 0 ? 'plus' : 'minus'}">${m.change > 0 ? '+' : ''}${m.change}</td>
                     <td>${m.stock_after}</td>
                     <td>${esc(m.reason)}</td>
-                    <td class="hide-sm" style="font-size:11px; color:#64748b;">${esc(m.by_email || '—')}</td>
+                    <td class="hide-sm" style="font-size:11px; color:var(--muted);">${esc(m.by_email || '—')}</td>
                 </tr>`).join('');
         }
 
@@ -1497,7 +1529,7 @@
             document.getElementById('staffList').innerHTML = staff.map(s => `
                 <li><b>${esc(s.email)}</b>
                     <span>${s.role === 'owner' ? 'Owner' : 'Staff'} · added ${day(s.added_at)}
-                    ${s.email !== me ? ` · <a href="javascript:void(0)" onclick="removeStaff('${esc(s.email)}')" style="color:#e11d48;">remove</a>` : ''}</span></li>`).join('');
+                    ${s.email !== me ? ` · <a href="javascript:void(0)" onclick="removeStaff('${esc(s.email)}')" style="color:var(--bad);">remove</a>` : ''}</span></li>`).join('');
         }
 
         async function addStaff(e) {
