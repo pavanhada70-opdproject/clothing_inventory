@@ -19,7 +19,7 @@ Online version of the store's offline Garment POS. A single page (`public/index.
 1. Create a Supabase project and run the files in `supabase/migrations/` in order in the SQL editor. Change the owner email in `0002_medstock_features.sql` first if needed.
 2. Put the project URL and publishable key at the top of the `<script>` in `public/index.html` (`SUPABASE_URL`, `SUPABASE_KEY`). The publishable key is meant to be public; access is enforced by Row Level Security.
 3. In Supabase → Authentication → URL Configuration, set the Site URL to where the page is hosted.
-4. Host `public/index.html` on any static host (it has no build step). Open it, create an account with the owner email, confirm it, and sign in.
+4. Host the `public/` folder on any static host (it has no build step). On Railway, `Staticfile` tells Railpack to serve only `public/`, so the SQL and tools are never published. Open it, create an account with the owner email, confirm it, and sign in.
 
 ## Security
 
