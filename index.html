@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garment POS - Retail Inventory & Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #f8fafc; color: #1e293b; min-height: 100vh; display: flex; flex-direction: column; }
+
+        /* Navigation Header */
+        header { background: #1e1b4b; color: #ffffff; padding: 12px 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 50; }
+        .logo-title { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+        .logo-sub { font-size: 11px; color: #a5b4fc; }
+        .nav-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .nav-btn { background: #312e81; color: #c7d2fe; border: none; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
+        .nav-btn:hover { background: #3730a3; color: #ffffff; }
+        .nav-btn.active { background: #4f46e5; color: #ffffff; }
+        .user-chip { font-size: 11px; color: #a5b4fc; }
+        .head-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+        /* Phone: bottom tab bar like MedStock */
+        @media (max-width: 760px) {
+            header { padding: 10px 16px; }
+            #mainNav { position: fixed; bottom: 0; left: 0; right: 0; background: #1e1b4b; padding: 6px 4px; justify-content: space-around; flex-wrap: nowrap; overflow-x: auto; gap: 2px; z-index: 60; }
+            #mainNav .nav-btn { padding: 6px 8px; font-size: 10px; white-space: nowrap; flex: 0 0 auto; }
+            main { padding-bottom: 70px !important; }
+            .hide-sm { display: none; }
+        }
+
+        /* Layout & Cards */
+        main { max-width: 1240px; width: 100%; margin: 20px auto; padding: 0 16px; flex: 1; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+        h3 { font-size: 14px; }
+        .muted { color: #64748b; font-size: 12px; }
+
+        /* Grid System */
+        .grid-5 { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 16px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 16px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .grid-pos { display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px; }
+        @media (max-width: 900px) { .grid-pos, .grid-2 { grid-template-columns: 1fr; } }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+
+        /* Metric Cards */
+        .metric-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; border-left: 4px solid #4f46e5; cursor: default; }
+        .metric-card.clickable { cursor: pointer; }
+        .metric-card.purple { border-left-color: #7c3aed; background: #faf5ff; }
+        .metric-card.green { border-left-color: #10b981; }
+        .metric-card.blue { border-left-color: #0284c7; }
+        .metric-card.amber { border-left-color: #f59e0b; }
+        .metric-card.red { border-left-color: #e11d48; }
+        .metric-title { font-size: 11px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-bottom: 6px; }
+        .metric-value { font-size: 24px; font-weight: 800; color: #0f172a; }
+        .metric-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+        /* Lists */
+        .list { list-style: none; max-height: 320px; overflow-y: auto; }
+        .list li { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+        .list li span { color: #64748b; text-align: right; }
+
+        /* Form Controls */
+        label { display: block; font-size: 11px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+        input, select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; outline: none; background: #fff; }
+        input[type=checkbox], input[type=radio] { width: auto; }
+        input:focus, select:focus { border-color: #4f46e5; }
+        .btn { padding: 8px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
+        .btn:disabled { opacity: 0.5; cursor: wait; }
+        .btn-indigo { background: #4f46e5; color: #ffffff; }
+        .btn-indigo:hover { background: #4338ca; }
+        .btn-emerald { background: #10b981; color: #ffffff; }
+        .btn-emerald:hover { background: #059669; }
+        .btn-danger { background: #ef4444; color: #ffffff; }
+        .btn-light { background: #e2e8f0; }
+        .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+        /* POS Catalog Grid */
+        .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 480px; overflow-y: auto; margin-top: 10px; }
+        .catalog-item { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; cursor: pointer; transition: 0.15s; background: #fff; }
+        .catalog-item:hover { border-color: #4f46e5; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        /* Data Tables */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+        th { background: #f8fafc; padding: 10px; border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 700; }
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+        tr:hover { background: #f8fafc; }
+        .price-input { width: 80px; padding: 4px 6px; font-weight: bold; }
+        .small-input { width: 60px; padding: 4px 6px; }
+        .note-flag { display: inline-block; margin-top: 3px; font-size: 10px; color: #b45309; background: #fef3c7; padding: 1px 5px; border-radius: 4px; }
+        .pill { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; background: #f1f5f9; color: #475569; }
+        .pill.draft { background: #fef3c7; color: #b45309; }
+        .pill.committed { background: #dcfce7; color: #16a34a; }
+        .plus { color: #16a34a; font-weight: 700; }
+        .minus { color: #e11d48; font-weight: 700; }
+
+        /* Login */
+        #loginScreen { max-width: 360px; margin: 60px auto; }
+        #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #1e1b4b; color: #fff; padding: 10px 16px; border-radius: 6px; font-size: 12px; display: none; z-index: 100; max-width: calc(100% - 32px); }
+        #syncBadge { font-size: 11px; padding: 3px 8px; border-radius: 20px; background: #064e3b; color: #6ee7b7; }
+        #syncBadge.off { background: #7f1d1d; color: #fecaca; }
+        .owner-only { display: none; }
+        body.is-owner .owner-only { display: revert; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #receiptArea, #receiptArea * { visibility: visible; }
+            #receiptArea { position: absolute; left: 0; top: 0; width: 78mm; padding: 4px; font-size: 11px; background: #fff; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <div class="logo-title">GARMENT STORE POS</div>
+            <div class="logo-sub">Clothing Retail, Fast POS & Executive Analytics</div>
+        </div>
+        <nav class="nav-group" id="mainNav" style="display:none;">
+            <button type="button" class="nav-btn active" id="btn-dash" onclick="openView('dash')">📊 Dashboard</button>
+            <button type="button" class="nav-btn" id="btn-pos" onclick="openView('pos')">🛒 POS Billing</button>
+            <button type="button" class="nav-btn" id="btn-inventory" onclick="openView('inventory')">📦 Stock</button>
+            <button type="button" class="nav-btn" id="btn-purchases" onclick="openView('purchases')">🧾 Purchases</button>
+            <button type="button" class="nav-btn" id="btn-customers" onclick="openView('customers')">👥 Customers</button>
+            <button type="button" class="nav-btn" id="btn-history" onclick="openView('history')">📜 Sales</button>
+            <button type="button" class="nav-btn" id="btn-movements" onclick="openView('movements')">🔁 Stock Log</button>
+            <button type="button" class="nav-btn" id="btn-backup" onclick="openView('backup')">💾 Backup</button>
+            <button type="button" class="nav-btn owner-only" id="btn-staff" onclick="openView('staff')">🔐 Staff</button>
+        </nav>
+        <div class="head-right" id="headRight" style="display:none;">
+            <span id="syncBadge">● Online</span>
+            <span class="user-chip" id="userEmail"></span>
+            <button type="button" class="nav-btn" onclick="signOut()">Log out</button>
+        </div>
+    </header>
+
+    <!-- ================= LOGIN ================= -->
+    <section id="loginScreen" class="card" style="display:none;">
+        <h3 style="font-size: 15px; margin-bottom: 4px;">Sign in to your store</h3>
+        <p style="font-size: 11px; color: #64748b; margin-bottom: 14px;">Only staff added by the owner can see stock and bills.</p>
+        <form onsubmit="signIn(event)">
+            <label>Email</label>
+            <input type="email" id="loginEmail" required autocomplete="username" style="margin-bottom: 10px;">
+            <label>Password</label>
+            <input type="password" id="loginPass" required autocomplete="current-password" minlength="6" style="margin-bottom: 14px;">
+            <button type="submit" class="btn btn-indigo" style="width: 100%; padding: 10px;" id="loginBtn">Sign in</button>
+        </form>
+        <p style="font-size: 11px; color: #64748b; margin-top: 12px; text-align: center;">
+            First time? <a href="javascript:void(0)" onclick="signUp()">Create account</a> ·
+            <a href="javascript:void(0)" onclick="resetPassword()">Forgot password</a>
+        </p>
+        <p id="loginMsg" style="font-size: 11px; color: #e11d48; margin-top: 10px; text-align: center;"></p>
+    </section>
+
+    <main id="appMain" style="display:none;">
+
+        <!-- ================= 1. EXECUTIVE DASHBOARD ================= -->
+        <section id="view-dash" class="tab-panel active">
+            <div class="grid-5">
+                <div class="metric-card purple">
+                    <div class="metric-title">Total Quantity Available</div>
+                    <div class="metric-value" id="dashTotalPieces" style="color: #6d28d9;">0 Pcs</div>
+                    <div class="metric-sub" id="dashTotalStyles">Across 0 Garment Styles</div>
+                </div>
+                <div class="metric-card blue">
+                    <div class="metric-title">Sales of the Day (Today)</div>
+                    <div class="metric-value" id="dashTodaySales">₹0</div>
+                    <div class="metric-sub" id="dashTodayBills">0 Invoices Generated</div>
+                </div>
+                <div class="metric-card green">
+                    <div class="metric-title">Sales in Last 30 Days</div>
+                    <div class="metric-value" id="dashMonthSales">₹0</div>
+                    <div class="metric-sub" id="dashMonthBills">0 Completed Transactions</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Total Stock Value (Selling Price)</div>
+                    <div class="metric-value" id="dashRetailValuation">₹0</div>
+                    <div class="metric-sub">Selling value of in-store stock</div>
+                </div>
+                <div class="metric-card red clickable" onclick="openView('customers')">
+                    <div class="metric-title">Udhaar Outstanding</div>
+                    <div class="metric-value" id="dashUdhaar">₹0</div>
+                    <div class="metric-sub" id="dashUdhaarSub">0 customers owe money</div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <section class="card">
+                    <div class="flex-between" style="margin-bottom: 8px;">
+                        <h3>Low stock <span class="pill" id="lowCount">0</span></h3>
+                        <span class="muted">At or below reorder level</span>
+                    </div>
+                    <ul class="list" id="lowList"></ul>
+                </section>
+                <section class="card">
+                    <div class="flex-between" style="margin-bottom: 8px;">
+                        <h3>Slow-moving stock <span class="pill" id="slowCount">0</span></h3>
+                        <span class="muted">No sale in 90+ days</span>
+                    </div>
+                    <ul class="list" id="slowList"></ul>
+                </section>
+            </div>
+
+            <div class="card">
+                <div class="flex-between" style="margin-bottom: 14px;">
+                    <div>
+                        <h3 style="font-weight: 700;">Apparel Category Piece Counting & Valuations</h3>
+                        <p style="font-size: 11px; color: #64748b; margin-top: 2px;">Real-time stock quantity counts and selling value by garment type</p>
+                    </div>
+                    <span style="font-size: 11px; font-weight: bold; background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 20px;" id="dashTotalBadge">0 Total Pieces In Stock</span>
+                </div>
+                <div class="grid-4" id="typeCards"></div>
+            </div>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-indigo" onclick="openView('pos')">Open POS Billing Counter</button>
+                <button type="button" class="btn btn-emerald" onclick="openView('purchases')">Enter Supplier Bill</button>
+                <button type="button" class="btn btn-light" onclick="exportInventoryCSV()">Download Stock Report (CSV)</button>
+            </div>
+        </section>
+
+        <!-- ================= 2. POS BILLING TAB ================= -->
+        <section id="view-pos" class="tab-panel">
+            <div class="grid-pos">
+                <div class="card">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="posSearch" placeholder="Search garment, brand or scan barcode..." oninput="renderCatalog()" onkeydown="scanToCart(event)">
+                        <select id="posCat" onchange="renderCatalog()" style="width: 140px;">
+                            <option value="">All Items</option>
+                            <option value="Men">Men</option>
+                            <option value="Women">Women</option>
+                            <option value="Kids">Kids</option>
+                        </select>
+                    </div>
+                    <div id="catalogList" class="catalog-grid"></div>
+                </div>
+
+                <div class="card flex-between" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                    <div>
+                        <div class="flex-between" style="border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+                            <strong style="font-size: 14px;">Active Cart</strong>
+                            <a href="javascript:void(0)" onclick="clearCart()" style="font-size: 11px; color: #ef4444; text-decoration: none;">Empty Cart</a>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0;">
+                            <input type="tel" id="custPhone" placeholder="Mobile / WhatsApp" oninput="fillCustomerFromPhone()" list="custPhoneList">
+                            <datalist id="custPhoneList"></datalist>
+                            <input type="text" id="custName" placeholder="Customer Name">
+                        </div>
+                        <div id="custHint" class="muted" style="font-size: 11px; margin-bottom: 6px;"></div>
+                        <div id="cartList" style="max-height: 220px; overflow-y: auto; font-size: 12px;"></div>
+                    </div>
+
+                    <div style="border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                        <div class="flex-between" style="font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                            <span>Subtotal:</span>
+                            <span id="subVal">₹0</span>
+                        </div>
+                        <div class="flex-between" style="font-size: 12px; color: #64748b; margin-bottom: 6px;">
+                            <span>Discount Flat (₹):</span>
+                            <input type="number" id="discVal" value="0" min="0" oninput="calcTotals()" style="width: 70px; text-align: right; padding: 4px;">
+                        </div>
+                        <div class="flex-between" style="font-size: 15px; font-weight: bold; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+                            <span>Total Payable:</span>
+                            <span id="totalVal" style="color: #4f46e5;">₹0</span>
+                        </div>
+
+                        <div style="display: flex; gap: 12px; margin: 10px 0; font-size: 12px;">
+                            <label><input type="radio" name="payType" value="Cash" checked> Cash</label>
+                            <label><input type="radio" name="payType" value="UPI"> UPI</label>
+                            <label><input type="radio" name="payType" value="Udhaar"> Udhaar</label>
+                        </div>
+
+                        <button type="button" class="btn btn-emerald" style="width: 100%; padding: 10px;" onclick="checkout()" id="checkoutBtn">
+                            Complete Sale & Print Slip
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 3. STOCK INVENTORY TAB ================= -->
+        <section id="view-inventory" class="tab-panel">
+            <div class="card">
+                <h3 style="margin-bottom: 12px;">Add Garment to Store Stock</h3>
+                <p class="muted" style="margin-bottom: 10px;">For new stock from a supplier, use <a href="javascript:void(0)" onclick="openView('purchases')">Purchases</a> so it's recorded against the bill.</p>
+                <form onsubmit="saveGarment(event)">
+                    <div class="form-grid">
+                        <div>
+                            <label>Brand *</label>
+                            <input type="text" id="gBrand" required placeholder="e.g. RR10, ZARA" list="brandList">
+                        </div>
+                        <div>
+                            <label>Type</label>
+                            <select id="gType" class="type-select"></select>
+                        </div>
+                        <div>
+                            <label>Category</label>
+                            <select id="gCat">
+                                <option value="Men">Men</option>
+                                <option value="Women">Women</option>
+                                <option value="Kids">Kids</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Size</label>
+                            <input type="text" id="gSize" placeholder="M, L, XL, 32">
+                        </div>
+                        <div>
+                            <label>Color</label>
+                            <input type="text" id="gColor" placeholder="Navy, Black, Blue">
+                        </div>
+                        <div>
+                            <label>Selling Price (₹) *</label>
+                            <input type="number" id="gPrice" required min="1" placeholder="0">
+                        </div>
+                        <div>
+                            <label>Stock Quantity (Pcs) *</label>
+                            <input type="number" id="gStock" required min="0" placeholder="10">
+                        </div>
+                        <div>
+                            <label>Reorder at (Pcs)</label>
+                            <input type="number" id="gReorder" min="0" value="0">
+                        </div>
+                        <div>
+                            <label>Barcode / SKU</label>
+                            <input type="text" id="gBarcode" placeholder="Auto or Enter Barcode">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-indigo" style="width: 100%; padding: 10px;">Save Garment to Stock</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="flex-between" style="margin-bottom: 12px;">
+                    <h3>Store Stock List (<span id="invCount">0</span> styles | <span id="invPiecesCount" style="color:#4f46e5; font-weight:800;">0</span> Pieces)</h3>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
+                        <select id="invShow" onchange="renderInventory()" style="width:auto;">
+                            <option value="">All items</option>
+                            <option value="flag">Needs a check</option>
+                            <option value="low">Low stock</option>
+                            <option value="slow">Slow-moving</option>
+                            <option value="out">Out of stock</option>
+                        </select>
+                        <input type="text" id="invFilter" oninput="renderInventory()" placeholder="Filter stock..." style="width: 180px;">
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="hide-sm">SKU / Barcode</th>
+                                <th>Item Name</th>
+                                <th>Category</th>
+                                <th>Size / Color</th>
+                                <th>Selling Price</th>
+                                <th>Available Stock</th>
+                                <th class="hide-sm">Reorder at</th>
+                                <th style="text-align: right;">Stock +/-</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 4. PURCHASES (SUPPLIER BILLS) ================= -->
+        <section id="view-purchases" class="tab-panel">
+            <div class="card" id="purchaseListCard">
+                <div class="flex-between" style="margin-bottom: 10px;">
+                    <h3>Supplier purchase bills</h3>
+                    <button type="button" class="btn btn-indigo" onclick="newPurchase()">+ New supplier bill</button>
+                </div>
+                <p class="muted" style="margin-bottom: 12px;">Enter what you bought, check the lines, then press "Add to stock". Existing items (same brand, type, size and colour) get their stock increased; new ones are created.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Supplier</th><th>Bill no.</th><th class="hide-sm">Date</th><th>Pieces</th><th>Status</th><th></th></tr></thead>
+                        <tbody id="purchaseTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card" id="purchaseEditCard" style="display:none;">
+                <div class="flex-between" style="margin-bottom: 12px;">
+                    <h3 id="purchaseTitle">Supplier bill</h3>
+                    <button type="button" class="btn btn-light btn-sm" onclick="closePurchase()">← Back to bills</button>
+                </div>
+                <div class="form-grid">
+                    <div><label>Supplier *</label><input type="text" id="pSupplier" list="supplierList" placeholder="e.g. Surat Textiles"></div>
+                    <datalist id="supplierList"></datalist>
+                    <div><label>Bill no.</label><input type="text" id="pBillNo"></div>
+                    <div><label>Bill date</label><input type="date" id="pBillDate"></div>
+                    <div>
+                        <label>Bill photo / PDF</label>
+                        <input type="file" id="pPhoto" accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment">
+                        <div id="pPhotoLink" style="font-size: 11px; margin-top: 4px;"></div>
+                    </div>
+                </div>
+
+                <h3 style="margin: 8px 0;">Lines</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Brand</th><th>Type</th><th>Category</th><th>Size</th><th>Color</th><th>Selling ₹</th><th>Qty</th><th class="hide-sm">Barcode</th><th></th></tr></thead>
+                        <tbody id="pLines"></tbody>
+                    </table>
+                </div>
+                <div style="display:flex; gap:8px; margin-top: 10px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-light" onclick="addPurchaseLine()" id="pAddLine">+ Add line</button>
+                    <button type="button" class="btn btn-light" onclick="addSizeRun()" id="pAddRun">+ Add size set (e.g. M, L, XL)</button>
+                </div>
+                <div class="flex-between" style="margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                    <strong id="pTotals">0 pieces</strong>
+                    <div style="display:flex; gap:8px; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-danger owner-only" onclick="deletePurchase()" id="pDelete">Delete draft</button>
+                        <button type="button" class="btn btn-indigo" onclick="savePurchase()" id="pSave">Save draft</button>
+                        <button type="button" class="btn btn-emerald" onclick="commitPurchase()" id="pCommit">Add to stock</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 5. CUSTOMERS & UDHAAR ================= -->
+        <section id="view-customers" class="tab-panel">
+            <div class="card">
+                <div class="flex-between" style="margin-bottom: 12px;">
+                    <h3>Customers</h3>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <label style="display:flex; gap:4px; align-items:center; margin:0; white-space:nowrap;"><input type="checkbox" id="custOwesOnly" onchange="renderCustomers()"> Udhaar due only</label>
+                        <input type="text" id="custFilter" oninput="renderCustomers()" placeholder="Search name or mobile" style="width: 180px;">
+                    </div>
+                </div>
+                <p class="muted" style="margin-bottom: 10px;">Customers are saved automatically when you enter a mobile number at billing.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Name</th><th>Mobile</th><th class="hide-sm">Bills</th><th class="hide-sm">Last visit</th><th>Udhaar due</th><th style="text-align:right;"></th></tr></thead>
+                        <tbody id="customerTable"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card" id="custDetail" style="display:none;"></div>
+        </section>
+
+        <!-- ================= 6. SALES HISTORY TAB ================= -->
+        <section id="view-history" class="tab-panel">
+            <div class="card">
+                <h3 style="margin-bottom: 12px;">Completed Sales Invoices</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Bill ID</th>
+                                <th>Date & Time</th>
+                                <th>Customer</th>
+                                <th class="hide-sm">Items</th>
+                                <th>Payment</th>
+                                <th>Amount</th>
+                                <th style="text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 7. STOCK MOVEMENT LOG ================= -->
+        <section id="view-movements" class="tab-panel">
+            <div class="card">
+                <div class="flex-between" style="margin-bottom: 12px;">
+                    <h3>Stock log</h3>
+                    <input type="text" id="movFilter" oninput="renderMovements()" placeholder="Filter by item, reason or staff" style="width: 220px;">
+                </div>
+                <p class="muted" style="margin-bottom: 10px;">Every sale, purchase and manual change, newest first. This log can't be edited.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>When</th><th>Item</th><th>Change</th><th>Stock after</th><th>Reason</th><th class="hide-sm">By</th></tr></thead>
+                        <tbody id="movementTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 8. EXCEL & BACKUP TAB ================= -->
+        <section id="view-backup" class="tab-panel">
+            <div class="card">
+                <h3 style="margin-bottom: 10px;">Store Backup & Excel Reports</h3>
+                <p style="font-size: 12px; color: #64748b; margin-bottom: 16px;">Your data is saved online automatically. Download copies any time as spreadsheets.</p>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-emerald" onclick="exportInventoryCSV()" style="padding: 10px 18px;">Download Inventory Report (Excel CSV)</button>
+                    <button type="button" class="btn btn-indigo" onclick="exportSalesCSV()" style="padding: 10px 18px;">Download Sales Report (Excel CSV)</button>
+                    <button type="button" class="btn btn-light" onclick="exportJSONBackup()" style="padding: 10px 18px;">Download JSON System Backup</button>
+                </div>
+            </div>
+            <div class="card">
+                <h3 style="margin-bottom: 10px;">Import Stock from CSV</h3>
+                <p style="font-size: 12px; color: #64748b; margin-bottom: 12px;">Use a CSV with columns Barcode, Name, Brand, Type, Category, Size, Color, Selling Price, Stock Quantity (Pieces). Rows with a barcode that already exists update that item; new barcodes are added.</p>
+                <input type="file" id="importFile" accept=".csv,text/csv" style="max-width: 320px;">
+                <button type="button" class="btn btn-indigo" onclick="importCSV()" style="margin-top: 10px;" id="importBtn">Import</button>
+                <p id="importMsg" style="font-size: 12px; margin-top: 8px;"></p>
+            </div>
+        </section>
+
+        <!-- ================= 9. STAFF (OWNER) ================= -->
+        <section id="view-staff" class="tab-panel">
+            <div class="card">
+                <h3 style="margin-bottom: 6px;">Staff who can use this store</h3>
+                <p class="muted" style="margin-bottom: 12px;">Add a staff member's email here, then they create an account with that email on the login screen. Staff can bill, add stock and enter supplier bills. Only owners can delete items and drafts or manage staff.</p>
+                <form onsubmit="addStaff(event)" style="display:flex; gap:8px; flex-wrap: wrap; margin-bottom: 12px;">
+                    <input type="email" id="staffEmail" required placeholder="staff@email.com" style="max-width: 260px;">
+                    <select id="staffRole" style="width:auto;"><option value="staff">Staff</option><option value="owner">Owner</option></select>
+                    <button type="submit" class="btn btn-indigo">Add</button>
+                </form>
+                <ul class="list" id="staffList"></ul>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="toast"></div>
+
+    <datalist id="brandList"></datalist>
+
+    <!-- Hidden Thermal Printable Slip -->
+    <div id="receiptArea" style="display:none;">
+        <div style="text-align: center; border-bottom: 1px dashed black; padding-bottom: 5px;">
+            <h3 style="margin: 0; font-size: 13px;">GARMENT STORE</h3>
+            <p style="margin: 2px 0;">Clothing & Apparel Retail</p>
+            <p id="recDate" style="font-size: 9px;"></p>
+        </div>
+        <div style="padding: 4px 0; border-bottom: 1px dashed black; font-size: 10px;">
+            <p>Bill: <span id="recBillId"></span></p>
+            <p>Customer: <span id="recCustomer"></span></p>
+        </div>
+        <table style="width: 100%; margin: 6px 0; font-size: 10px;">
+            <thead>
+                <tr style="border-bottom: 1px solid black;">
+                    <th style="padding: 2px 0;">Item</th>
+                    <th style="padding: 2px 0;">Qty</th>
+                    <th style="padding: 2px 0; text-align: right;">Price</th>
+                </tr>
+            </thead>
+            <tbody id="recItems"></tbody>
+        </table>
+        <div style="border-top: 1px dashed black; padding-top: 4px; text-align: right; font-size: 11px;">
+            <p id="recDiscRow" style="font-size: 9px;"></p>
+            <p><strong>Total: ₹<span id="recTotal">0</span></strong></p>
+            <p style="font-size: 9px;">Payment: <span id="recPay"></span></p>
+            <p id="recDue" style="font-size: 9px;"></p>
+        </div>
+        <p style="text-align: center; margin-top: 8px; font-size: 9px;">Thank you! Visit again.</p>
+    </div>
+
+    <script>
+        // Online Data Store (Supabase). The publishable key is safe in the browser; access is enforced by database rules.
+        const SUPABASE_URL = 'https://qvqhmkhsufmtdqorrlmf.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_spvAObGCH0MOA0Ca4M5-qw_mmv-xtK4';
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const TYPES = ['Shirt', 'T-Shirt', 'Jeans', 'Trouser', 'Cargo', 'Kurta', 'Short Kurta', 'Jacket', 'Other'];
+        const SLOW_DAYS = 90;
+
+        let inventory = [];
+        let sales = [];
+        let customers = [];
+        let purchases = [];
+        let movements = [];
+        let staff = [];
+        let myRole = null;
+        let cart = [];
+        let channel = null;
+        let editingPurchase = null;
+        let pLines = [];
+
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN');
+        const when = d => d ? new Date(d).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+        const day = d => d ? new Date(d).toLocaleDateString('en-IN') : '—';
+        const daysSince = d => d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : Infinity;
+
+        function toast(msg, ms = 2500) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => t.style.display = 'none', ms);
+        }
+
+        function fail(error, what) {
+            console.error(what, error);
+            toast(`${what} failed: ${error.message || error}`, 5000);
+        }
+
+        // ================= LOGIN =================
+        async function signIn(e) {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = true;
+            const { error } = await db.auth.signInWithPassword({
+                email: document.getElementById('loginEmail').value.trim(),
+                password: document.getElementById('loginPass').value
+            });
+            btn.disabled = false;
+            if (error) document.getElementById('loginMsg').innerText = error.message;
+        }
+
+        async function signUp() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPass').value;
+            if (!email || password.length < 6) {
+                document.getElementById('loginMsg').innerText = 'Enter your email and a password (6+ characters) above, then click Create account.';
+                return;
+            }
+            const { error } = await db.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
+            document.getElementById('loginMsg').innerText = error ? error.message : 'Account created. Check your email to confirm, then sign in.';
+        }
+
+        async function resetPassword() {
+            const email = document.getElementById('loginEmail').value.trim();
+            if (!email) { document.getElementById('loginMsg').innerText = 'Enter your email above first.'; return; }
+            const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+            document.getElementById('loginMsg').innerText = error ? error.message : 'Password reset link sent to your email.';
+        }
+
+        async function signOut() {
+            await db.auth.signOut();
+        }
+
+        async function onSession(session) {
+            const loggedIn = !!session;
+            document.getElementById('loginScreen').style.display = loggedIn ? 'none' : 'block';
+            document.getElementById('appMain').style.display = loggedIn ? 'block' : 'none';
+            document.getElementById('mainNav').style.display = loggedIn ? 'flex' : 'none';
+            document.getElementById('headRight').style.display = loggedIn ? 'flex' : 'none';
+            if (!loggedIn) {
+                if (channel) { db.removeChannel(channel); channel = null; }
+                inventory = []; sales = []; customers = []; purchases = []; movements = []; cart = [];
+                myRole = null;
+                document.body.classList.remove('is-owner');
+                document.getElementById('userEmail').innerText = '';
+                return;
+            }
+            if (session.user.email === document.getElementById('userEmail').innerText) return;
+            document.getElementById('userEmail').innerText = session.user.email;
+
+            const { data: role } = await db.rpc('staff_role');
+            myRole = role;
+            document.body.classList.toggle('is-owner', role === 'owner');
+            if (!role) {
+                toast('Your account is not on the staff list yet. Ask the owner to add your email under Staff.', 8000);
+                return;
+            }
+            await loadAll();
+            subscribeLive();
+            openView('dash');
+        }
+
+        // ================= DATA LOADING =================
+        async function loadInventory() {
+            const rows = [];
+            for (let from = 0; ; from += 1000) {
+                const { data, error } = await db.from('items').select('*').order('id').range(from, from + 999);
+                if (error) { fail(error, 'Loading stock'); return; }
+                rows.push(...data);
+                if (data.length < 1000) break;
+            }
+            inventory = rows.map(r => ({ ...r, price: Number(r.price) }));
+        }
+
+        async function loadSales() {
+            const { data, error } = await db.from('sales')
+                .select('*, sale_items(*)')
+                .order('created_at', { ascending: false })
+                .limit(500);
+            if (error) { fail(error, 'Loading sales'); return; }
+            sales = data.map(s => ({ ...s, total: Number(s.total), items: s.sale_items || [] }));
+        }
+
+        async function loadCustomers() {
+            const { data, error } = await db.from('customer_balances').select('*').order('last_visit', { ascending: false, nullsFirst: false });
+            if (error) { fail(error, 'Loading customers'); return; }
+            customers = data.map(c => ({ ...c, due: Number(c.udhaar_given) - Number(c.udhaar_paid) }));
+            document.getElementById('custPhoneList').innerHTML = customers.map(c => `<option value="${esc(c.phone)}">${esc(c.name)}</option>`).join('');
+        }
+
+        async function loadPurchases() {
+            const { data, error } = await db.from('purchases').select('*').order('created_at', { ascending: false }).limit(200);
+            if (error) { fail(error, 'Loading purchases'); return; }
+            purchases = data;
+            const suppliers = [...new Set(purchases.map(p => p.supplier))].sort();
+            document.getElementById('supplierList').innerHTML = suppliers.map(s => `<option value="${esc(s)}">`).join('');
+        }
+
+        async function loadMovements() {
+            const { data, error } = await db.from('stock_movements').select('*').order('created_at', { ascending: false }).limit(500);
+            if (error) { fail(error, 'Loading stock log'); return; }
+            movements = data;
+        }
+
+        async function loadStaff() {
+            if (myRole !== 'owner') return;
+            const { data, error } = await db.from('staff').select('*').order('added_at');
+            if (error) { fail(error, 'Loading staff'); return; }
+            staff = data;
+        }
+
+        async function loadAll() {
+            await Promise.all([loadInventory(), loadSales(), loadCustomers()]);
+            renderBrandList();
+        }
+
+        // Keep every open counter in sync when another device sells or edits stock
+        function subscribeLive() {
+            if (channel) db.removeChannel(channel);
+            channel = db.channel('store-live')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, payload => {
+                    if (payload.eventType === 'DELETE') {
+                        inventory = inventory.filter(i => i.id !== payload.old.id);
+                    } else {
+                        const row = { ...payload.new, price: Number(payload.new.price) };
+                        const idx = inventory.findIndex(i => i.id === row.id);
+                        if (idx >= 0) inventory[idx] = row; else inventory.push(row);
+                    }
+                    refreshActiveView();
+                })
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sales' }, async () => {
+                    await Promise.all([loadSales(), loadCustomers()]);
+                    refreshActiveView();
+                })
+                .subscribe(status => {
+                    const b = document.getElementById('syncBadge');
+                    const ok = status === 'SUBSCRIBED';
+                    b.classList.toggle('off', !ok);
+                    b.innerText = ok ? '● Online' : '● Reconnecting…';
+                });
+        }
+
+        let activeView = 'dash';
+        function refreshActiveView() {
+            if (activeView === 'dash') renderDashboard();
+            if (activeView === 'pos') renderCatalog();
+            if (activeView === 'inventory') renderInventory();
+            if (activeView === 'purchases') renderPurchases();
+            if (activeView === 'customers') renderCustomers();
+            if (activeView === 'history') renderHistory();
+            if (activeView === 'movements') renderMovements();
+            if (activeView === 'staff') renderStaff();
+        }
+
+        // Tab Navigation
+        async function openView(name) {
+            activeView = name;
+            const tabs = ['dash', 'pos', 'inventory', 'purchases', 'customers', 'history', 'movements', 'backup', 'staff'];
+            tabs.forEach(t => {
+                const el = document.getElementById('view-' + t);
+                const btn = document.getElementById('btn-' + t);
+                if (el) el.classList.remove('active');
+                if (btn) btn.classList.remove('active');
+            });
+
+            const activeEl = document.getElementById('view-' + name);
+            const activeBtn = document.getElementById('btn-' + name);
+            if (activeEl) activeEl.classList.add('active');
+            if (activeBtn) activeBtn.classList.add('active');
+
+            if (name === 'purchases') await loadPurchases();
+            if (name === 'movements') await loadMovements();
+            if (name === 'customers') await loadCustomers();
+            if (name === 'staff') await loadStaff();
+            refreshActiveView();
+        }
+
+        // ================= DASHBOARD ENGINE =================
+        const isLow = i => (i.stock || 0) <= (i.reorder_level ?? 0);
+        const isSlow = i => (i.stock || 0) > 0 && daysSince(i.last_sold_at || i.last_received_at || i.created_at) >= SLOW_DAYS;
+
+        function renderDashboard() {
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+
+            const todaySales = sales.filter(s => new Date(s.created_at) >= startOfToday);
+            document.getElementById('dashTodaySales').innerText = inr(todaySales.reduce((acc, s) => acc + s.total, 0));
+            document.getElementById('dashTodayBills').innerText = `${todaySales.length} Bill(s) Generated Today`;
+
+            const monthSales = sales.filter(s => new Date(s.created_at) >= thirtyDaysAgo);
+            document.getElementById('dashMonthSales').innerText = inr(monthSales.reduce((acc, s) => acc + s.total, 0));
+            document.getElementById('dashMonthBills').innerText = `${monthSales.length} Orders Completed`;
+
+            let totalPieces = 0, totalRetailVal = 0;
+            const byType = {};
+            inventory.forEach(item => {
+                const stock = item.stock || 0;
+                totalPieces += stock;
+                totalRetailVal += stock * item.price;
+                const t = item.type || 'Other';
+                byType[t] = byType[t] || { pcs: 0, val: 0 };
+                byType[t].pcs += stock;
+                byType[t].val += stock * item.price;
+            });
+
+            document.getElementById('dashTotalPieces').innerText = `${totalPieces} Pieces`;
+            document.getElementById('dashTotalStyles').innerText = `Across ${inventory.length} Garment Styles`;
+            document.getElementById('dashTotalBadge').innerText = `${totalPieces} Total Pieces In Stock`;
+            document.getElementById('dashRetailValuation').innerText = inr(totalRetailVal);
+
+            const owing = customers.filter(c => c.due > 0);
+            document.getElementById('dashUdhaar').innerText = inr(owing.reduce((s, c) => s + c.due, 0));
+            document.getElementById('dashUdhaarSub').innerText = `${owing.length} customer(s) owe money`;
+
+            const low = inventory.filter(isLow).sort((a, b) => a.stock - b.stock);
+            document.getElementById('lowCount').innerText = low.length;
+            document.getElementById('lowList').innerHTML = low.length === 0 ? '<li class="muted">Nothing at or below reorder level.</li>' :
+                low.slice(0, 100).map(i => `<li><b>${esc(i.name)} (${esc(i.size)})</b><span>${i.stock} left · reorder at ${i.reorder_level ?? 0}</span></li>`).join('');
+
+            const slow = inventory.filter(isSlow).sort((a, b) => b.stock - a.stock);
+            document.getElementById('slowCount').innerText = slow.length;
+            document.getElementById('slowList').innerHTML = slow.length === 0 ? `<li class="muted">Everything has sold or arrived in the last ${SLOW_DAYS} days.</li>` :
+                slow.slice(0, 100).map(i => `<li><b>${esc(i.name)} (${esc(i.size)})</b><span>${i.stock} pcs · ${i.last_sold_at ? 'last sold ' + day(i.last_sold_at) : 'never sold online'}</span></li>`).join('');
+
+            const colors = ['#3b82f6', '#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#64748b'];
+            document.getElementById('typeCards').innerHTML = Object.entries(byType)
+                .sort((a, b) => b[1].pcs - a[1].pcs)
+                .map(([t, v], i) => `
+                    <div style="background: #f1f5f9; padding: 14px; border-radius: 8px; border-top: 3px solid ${colors[i % colors.length]};">
+                        <div style="font-size: 11px; font-weight: bold; color: #475569; text-transform: uppercase;">${esc(t)}</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; margin: 4px 0;">${v.pcs} Pieces</div>
+                        <div style="font-size: 11px; color: #64748b;">Selling Value: ${inr(v.val)}</div>
+                    </div>`).join('');
+        }
+
+        // ================= POS CATALOG & CART =================
+        function matches(i, query) {
+            return [i.name, i.brand, i.barcode, i.size, i.color].some(v => (v || '').toString().toLowerCase().includes(query));
+        }
+
+        function renderCatalog() {
+            const query = (document.getElementById('posSearch')?.value || '').toLowerCase().trim();
+            const cat = document.getElementById('posCat')?.value || '';
+            const container = document.getElementById('catalogList');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const filtered = inventory.filter(i => matches(i, query) && (!cat || i.category === cat)).slice(0, 300);
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 20px 0;">No garments found</p>';
+                return;
+            }
+
+            filtered.forEach(it => {
+                const outOfStock = (it.stock || 0) <= 0;
+                const div = document.createElement('div');
+                div.className = 'catalog-item';
+                if (outOfStock) div.style.opacity = '0.4';
+                div.onclick = () => { if (!outOfStock) addToCart(it.id); };
+                div.innerHTML = `
+                    <div class="flex-between" style="font-size: 10px; margin-bottom: 4px;">
+                        <span style="background: #f1f5f9; padding: 1px 4px; border-radius: 4px; font-weight: bold;">${esc(it.size || 'Free')}</span>
+                        <span style="font-weight: bold; color: ${isLow(it) ? '#ef4444' : '#10b981'};">Stock: ${it.stock || 0}</span>
+                    </div>
+                    <div style="font-weight: bold; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(it.name)}</div>
+                    <div style="font-size: 10px; color: #94a3b8;">${esc(it.category)} · ${esc(it.color || '-')}</div>
+                    <div style="color: #4f46e5; font-weight: bold; font-size: 13px; margin-top: 4px;">${inr(it.price)}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Barcode scanners type the code then press Enter
+        function scanToCart(e) {
+            if (e.key !== 'Enter') return;
+            const code = e.target.value.trim().toLowerCase();
+            const hit = inventory.find(i => (i.barcode || '').toLowerCase() === code);
+            if (hit) {
+                addToCart(hit.id);
+                e.target.value = '';
+                renderCatalog();
+            }
+        }
+
+        function fillCustomerFromPhone() {
+            const phone = document.getElementById('custPhone').value.replace(/[^0-9]/g, '').slice(-10);
+            const c = phone.length === 10 ? customers.find(x => x.phone === phone) : null;
+            const hint = document.getElementById('custHint');
+            if (!c) { hint.innerText = ''; return; }
+            document.getElementById('custName').value = c.name;
+            hint.innerHTML = `Returning customer · ${c.bills} bill(s)` + (c.due > 0 ? ` · <b style="color:#e11d48;">Udhaar due ${inr(c.due)}</b>` : '');
+        }
+
+        function addToCart(id) {
+            const item = inventory.find(i => i.id === id);
+            if (!item || (item.stock || 0) <= 0) return;
+            if (item.price <= 1) { toast(`${item.name} has no real price yet. Fix it in Stock first.`, 4000); return; }
+
+            const inCart = cart.find(c => c.id === id);
+            if (inCart) {
+                if (inCart.qty < item.stock) inCart.qty++;
+                else toast('Maximum stock limit reached');
+            } else {
+                cart.push({ id: item.id, name: item.name, size: item.size, price: item.price, qty: 1 });
+            }
+            renderCart();
+        }
+
+        function updateCartQty(id, d) {
+            const inCart = cart.find(c => c.id === id);
+            const item = inventory.find(i => i.id === id);
+            if (!inCart) return;
+
+            inCart.qty += d;
+            if (inCart.qty <= 0) cart = cart.filter(c => c.id !== id);
+            else if (item && inCart.qty > item.stock) inCart.qty = item.stock;
+            renderCart();
+        }
+
+        function clearCart() {
+            cart = [];
+            renderCart();
+        }
+
+        function renderCart() {
+            const list = document.getElementById('cartList');
+            if (!list) return;
+            list.innerHTML = '';
+
+            if (cart.length === 0) {
+                list.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 30px 0;">Cart is empty</p>';
+                calcTotals();
+                return;
+            }
+
+            cart.forEach(it => {
+                const row = document.createElement('div');
+                row.className = 'flex-between';
+                row.style.padding = '6px 0';
+                row.style.borderBottom = '1px solid #f1f5f9';
+                row.innerHTML = `
+                    <div>
+                        <div style="font-weight: bold;">${esc(it.name)}</div>
+                        <div style="font-size: 10px; color: #94a3b8;">${esc(it.size)} | ${inr(it.price)}</div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <button type="button" class="btn btn-sm btn-light" onclick="updateCartQty(${it.id}, -1)">-</button>
+                        <span style="font-weight: bold; width: 16px; text-align: center;">${it.qty}</span>
+                        <button type="button" class="btn btn-sm btn-light" onclick="updateCartQty(${it.id}, 1)">+</button>
+                    </div>
+                    <div style="font-weight: bold;">${inr(it.price * it.qty)}</div>
+                `;
+                list.appendChild(row);
+            });
+            calcTotals();
+        }
+
+        function calcTotals() {
+            const sub = cart.reduce((s, it) => s + (it.price * it.qty), 0);
+            const disc = parseFloat(document.getElementById('discVal')?.value) || 0;
+            const tot = Math.max(0, sub - disc);
+
+            document.getElementById('subVal').innerText = inr(sub);
+            document.getElementById('totalVal').innerText = inr(tot);
+        }
+
+        async function checkout() {
+            if (cart.length === 0) { toast('Cart is empty'); return; }
+            const pay = document.querySelector('input[name="payType"]:checked')?.value || 'Cash';
+            const name = document.getElementById('custName')?.value.trim() || '';
+            const phone = document.getElementById('custPhone')?.value.trim() || '';
+            if (pay === 'Udhaar' && (!name || phone.replace(/[^0-9]/g, '').length < 10)) {
+                toast('For Udhaar, enter the customer name and 10-digit mobile number.', 4000);
+                return;
+            }
+            const btn = document.getElementById('checkoutBtn');
+            btn.disabled = true;
+
+            const { data: sale, error } = await db.rpc('checkout', {
+                p_customer: name,
+                p_phone: phone,
+                p_discount: parseFloat(document.getElementById('discVal')?.value) || 0,
+                p_pay_mode: pay,
+                p_lines: cart.map(c => ({ item_id: c.id, qty: c.qty }))
+            });
+            btn.disabled = false;
+            if (error) { fail(error, 'Sale'); await loadInventory(); renderCatalog(); return; }
+
+            const printed = { ...sale, total: Number(sale.total), items: cart.map(c => ({ ...c })) };
+            await loadCustomers();
+            const cust = customers.find(c => c.id === printed.customer_id);
+
+            // Thermal Slip
+            document.getElementById('recBillId').innerText = printed.bill_no;
+            document.getElementById('recDate').innerText = when(printed.created_at);
+            document.getElementById('recCustomer').innerText = printed.customer;
+            document.getElementById('recTotal').innerText = printed.total;
+            document.getElementById('recPay').innerText = printed.pay_mode;
+            document.getElementById('recDiscRow').innerText = Number(printed.discount) > 0 ? `Subtotal ₹${Number(printed.subtotal)} - Discount ₹${Number(printed.discount)}` : '';
+            document.getElementById('recDue').innerText = cust && cust.due > 0 ? `Total udhaar due: ₹${cust.due}` : '';
+
+            const tbody = document.getElementById('recItems');
+            tbody.innerHTML = '';
+            printed.items.forEach(it => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${esc(it.name)} (${esc(it.size)})</td><td>${it.qty}</td><td style="text-align: right;">₹${it.price * it.qty}</td>`;
+                tbody.appendChild(tr);
+            });
+
+            const recBox = document.getElementById('receiptArea');
+            recBox.style.display = 'block';
+            window.print();
+            recBox.style.display = 'none';
+
+            clearCart();
+            ['custName', 'custPhone'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('custHint').innerText = '';
+            document.getElementById('discVal').value = 0;
+            document.querySelector('input[name="payType"][value="Cash"]').checked = true;
+            await Promise.all([loadInventory(), loadSales()]);
+            renderCatalog();
+            toast(`Bill ${printed.bill_no} saved`);
+        }
+
+        // ================= INVENTORY =================
+        function renderBrandList() {
+            const brands = [...new Set(inventory.map(i => i.brand).filter(Boolean))].sort();
+            document.getElementById('brandList').innerHTML = brands.map(b => `<option value="${esc(b)}">`).join('');
+        }
+
+        async function saveGarment(e) {
+            e.preventDefault();
+            const brand = document.getElementById('gBrand').value.trim().toUpperCase();
+            const type = document.getElementById('gType').value;
+            const row = {
+                brand, type,
+                name: `${brand} ${type}`,
+                category: document.getElementById('gCat').value,
+                size: document.getElementById('gSize').value.trim().toUpperCase() || 'Free',
+                color: document.getElementById('gColor').value.trim().toUpperCase() || null,
+                price: parseFloat(document.getElementById('gPrice').value) || 0,
+                stock: parseInt(document.getElementById('gStock').value) || 0,
+                reorder_level: parseInt(document.getElementById('gReorder').value) || 0,
+                barcode: document.getElementById('gBarcode').value.trim() || 'SKU-' + Date.now().toString().slice(-7)
+            };
+
+            const { data, error } = await db.from('items').insert(row).select().single();
+            if (error) { fail(error, 'Saving garment'); return; }
+            if (!inventory.some(i => i.id === data.id)) inventory.push({ ...data, price: Number(data.price) });
+
+            ['gBrand', 'gSize', 'gColor', 'gPrice', 'gStock', 'gBarcode'].forEach(id => document.getElementById(id).value = '');
+            renderBrandList();
+            renderInventory();
+            toast('Garment added successfully to stock!');
+        }
+
+        async function updateItem(id, patch, what) {
+            const it = inventory.find(i => i.id === id);
+            if (!it) return;
+            const before = { ...it };
+            Object.assign(it, patch);
+            renderInventory();
+            const { error } = await db.from('items').update(patch).eq('id', id);
+            if (error) { Object.assign(it, before); renderInventory(); fail(error, what); }
+        }
+
+        function adjustStock(id, d) {
+            const it = inventory.find(i => i.id === id);
+            if (!it) return;
+            updateItem(id, { stock: Math.max(0, (it.stock || 0) + d) }, 'Stock update');
+        }
+
+        function setPrice(id, value) {
+            const price = parseFloat(value);
+            if (!(price > 0)) { toast('Enter a valid price'); renderInventory(); return; }
+            const it = inventory.find(i => i.id === id);
+            const patch = { price };
+            if (it && it.note && /price/i.test(it.note)) patch.note = null;
+            updateItem(id, patch, 'Price update');
+        }
+
+        function setReorder(id, value) {
+            const n = parseInt(value);
+            if (!(n >= 0)) { renderInventory(); return; }
+            updateItem(id, { reorder_level: n }, 'Reorder level update');
+        }
+
+        function clearNote(id) {
+            updateItem(id, { note: null }, 'Marking checked');
+        }
+
+        async function deleteGarment(id) {
+            if (!confirm('Delete this garment from store stock?')) return;
+            const { error, count } = await db.from('items').delete({ count: 'exact' }).eq('id', id);
+            if (error) { fail(error, 'Delete'); return; }
+            if (count === 0) { toast('Only the owner can delete items.'); return; }
+            inventory = inventory.filter(i => i.id !== id);
+            renderInventory();
+        }
+
+        function renderInventory() {
+            const query = (document.getElementById('invFilter')?.value || '').toLowerCase().trim();
+            const show = document.getElementById('invShow')?.value || '';
+            const tbody = document.getElementById('inventoryTable');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const totalPieces = inventory.reduce((s, i) => s + (i.stock || 0), 0);
+            document.getElementById('invCount').innerText = inventory.length;
+            document.getElementById('invPiecesCount').innerText = totalPieces;
+
+            const keep = {
+                '': () => true,
+                flag: i => !!i.note,
+                low: isLow,
+                slow: isSlow,
+                out: i => (i.stock || 0) <= 0
+            }[show];
+            const filtered = inventory.filter(i => matches(i, query) && keep(i));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">No matching stock items</td></tr>';
+                return;
+            }
+
+            filtered.slice(0, 500).forEach(it => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="hide-sm" style="font-family: monospace; font-weight: bold; color: #64748b;">${esc(it.barcode || '-')}</td>
+                    <td style="font-weight: bold;">${esc(it.name || 'Garment')}
+                        ${it.note ? `<br><span class="note-flag">⚠ ${esc(it.note)}</span> <a href="javascript:void(0)" style="font-size:10px;" onclick="clearNote(${it.id})">mark checked</a>` : ''}</td>
+                    <td>
+                        <select onchange="updateItem(${it.id}, { category: this.value }, 'Category update')" style="width:auto; padding:3px;">
+                            ${['Men', 'Women', 'Kids'].map(c => `<option${c === it.category ? ' selected' : ''}>${c}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td>${esc(it.size || '-')} / ${esc(it.color || '-')}</td>
+                    <td><input class="price-input" type="number" min="1" value="${it.price}" onchange="setPrice(${it.id}, this.value)"></td>
+                    <td>
+                        <span style="background: ${isLow(it) ? '#ffe4e6; color: #e11d48;' : '#dcfce7; color: #16a34a;'}; padding: 2px 6px; border-radius: 4px; font-weight: bold;">
+                            ${it.stock || 0} Pcs
+                        </span>
+                    </td>
+                    <td class="hide-sm"><input class="small-input" type="number" min="0" value="${it.reorder_level ?? 0}" onchange="setReorder(${it.id}, this.value)"></td>
+                    <td style="text-align: right; white-space: nowrap;">
+                        <button type="button" class="btn btn-sm btn-light" onclick="adjustStock(${it.id}, -1)">-</button>
+                        <button type="button" class="btn btn-sm btn-light" onclick="adjustStock(${it.id}, 1)">+</button>
+                        <button type="button" class="btn btn-danger btn-sm owner-only" style="margin-left: 6px;" onclick="deleteGarment(${it.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ================= PURCHASES (SUPPLIER BILLS) =================
+        function renderPurchases() {
+            if (editingPurchase) return;
+            const tbody = document.getElementById('purchaseTable');
+            if (purchases.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">No supplier bills yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = purchases.map(p => `
+                <tr>
+                    <td><b>${esc(p.supplier)}</b></td>
+                    <td>${esc(p.bill_no || '—')}</td>
+                    <td class="hide-sm">${day(p.bill_date || p.created_at)}</td>
+                    <td>${p.status === 'committed' ? p.total_pcs : '—'}</td>
+                    <td><span class="pill ${p.status}">${p.status === 'committed' ? 'Added to stock' : 'Draft'}</span></td>
+                    <td style="text-align:right;"><button type="button" class="btn btn-sm btn-light" onclick="openPurchase(${p.id})">${p.status === 'draft' ? 'Edit' : 'View'}</button></td>
+                </tr>`).join('');
+        }
+
+        function blankLine(prev) {
+            return {
+                brand: prev?.brand || '', type: prev?.type || 'Shirt', category: prev?.category || 'Men',
+                size: '', color: prev?.color || '', price: prev?.price || '', qty: 1, barcode: ''
+            };
+        }
+
+        function newPurchase() {
+            editingPurchase = { id: null, status: 'draft', supplier: '', bill_no: '', bill_date: new Date().toISOString().slice(0, 10), photo_path: null };
+            pLines = [blankLine()];
+            showPurchaseEditor();
+        }
+
+        async function openPurchase(id) {
+            const p = purchases.find(x => x.id === id);
+            if (!p) return;
+            const { data, error } = await db.from('purchase_lines').select('*').eq('purchase_id', id).order('id');
+            if (error) { fail(error, 'Loading bill'); return; }
+            editingPurchase = { ...p };
+            pLines = data.map(l => ({ ...l, price: Number(l.price), color: l.color || '', barcode: l.barcode || '' }));
+            if (pLines.length === 0 && p.status === 'draft') pLines = [blankLine()];
+            showPurchaseEditor();
+        }
+
+        async function showPurchaseEditor() {
+            const p = editingPurchase;
+            const ro = p.status !== 'draft';
+            document.getElementById('purchaseListCard').style.display = 'none';
+            document.getElementById('purchaseEditCard').style.display = 'block';
+            document.getElementById('purchaseTitle').innerText = p.id ? (ro ? 'Supplier bill (added to stock)' : 'Edit supplier bill') : 'New supplier bill';
+            document.getElementById('pSupplier').value = p.supplier || '';
+            document.getElementById('pBillNo').value = p.bill_no || '';
+            document.getElementById('pBillDate').value = p.bill_date || '';
+            document.getElementById('pPhoto').value = '';
+            ['pSupplier', 'pBillNo', 'pBillDate', 'pPhoto'].forEach(id => document.getElementById(id).disabled = ro);
+            ['pAddLine', 'pAddRun', 'pSave', 'pCommit', 'pDelete'].forEach(id => document.getElementById(id).style.display = ro ? 'none' : '');
+            if (!p.id) document.getElementById('pDelete').style.display = 'none';
+
+            const link = document.getElementById('pPhotoLink');
+            link.innerHTML = '';
+            if (p.photo_path) {
+                const { data } = await db.storage.from('bills').createSignedUrl(p.photo_path, 300);
+                if (data) link.innerHTML = `<a href="${esc(data.signedUrl)}" target="_blank" rel="noopener">View attached bill</a>`;
+            }
+            renderPurchaseLines();
+        }
+
+        function closePurchase() {
+            editingPurchase = null;
+            pLines = [];
+            document.getElementById('purchaseEditCard').style.display = 'none';
+            document.getElementById('purchaseListCard').style.display = 'block';
+            renderPurchases();
+        }
+
+        function renderPurchaseLines() {
+            const ro = editingPurchase.status !== 'draft';
+            const dis = ro ? 'disabled' : '';
+            const typeOpts = sel => TYPES.map(t => `<option${t === sel ? ' selected' : ''}>${t}</option>`).join('');
+            const catOpts = sel => ['Men', 'Women', 'Kids'].map(c => `<option${c === sel ? ' selected' : ''}>${c}</option>`).join('');
+            document.getElementById('pLines').innerHTML = pLines.map((l, i) => `
+                <tr>
+                    <td><input ${dis} value="${esc(l.brand)}" list="brandList" oninput="pLines[${i}].brand=this.value" style="min-width:90px;"></td>
+                    <td><select ${dis} onchange="pLines[${i}].type=this.value">${typeOpts(l.type)}</select></td>
+                    <td><select ${dis} onchange="pLines[${i}].category=this.value">${catOpts(l.category)}</select></td>
+                    <td><input ${dis} value="${esc(l.size)}" oninput="pLines[${i}].size=this.value" class="small-input"></td>
+                    <td><input ${dis} value="${esc(l.color)}" oninput="pLines[${i}].color=this.value" style="min-width:60px;"></td>
+                    <td><input ${dis} type="number" min="1" value="${l.price}" oninput="pLines[${i}].price=this.value" class="small-input" style="width:70px;"></td>
+                    <td><input ${dis} type="number" min="1" value="${l.qty}" oninput="pLines[${i}].qty=this.value; purchaseTotals()" class="small-input"></td>
+                    <td class="hide-sm"><input ${dis} value="${esc(l.barcode)}" oninput="pLines[${i}].barcode=this.value" placeholder="optional" style="min-width:80px;"></td>
+                    <td>${ro ? '' : `<button type="button" class="btn btn-sm btn-light" onclick="pLines.splice(${i},1); renderPurchaseLines()">✕</button>`}</td>
+                </tr>`).join('');
+            purchaseTotals();
+        }
+
+        function purchaseTotals() {
+            const pcs = pLines.reduce((s, l) => s + (parseInt(l.qty) || 0), 0);
+            const val = pLines.reduce((s, l) => s + (parseInt(l.qty) || 0) * (parseFloat(l.price) || 0), 0);
+            document.getElementById('pTotals').innerText = `${pLines.length} line(s) · ${pcs} pieces · selling value ${inr(val)}`;
+        }
+
+        function addPurchaseLine() {
+            pLines.push(blankLine(pLines[pLines.length - 1]));
+            renderPurchaseLines();
+        }
+
+        function addSizeRun() {
+            const sizes = prompt('Sizes, separated by commas', 'M, L, XL, XXL');
+            if (!sizes) return;
+            const prev = pLines[pLines.length - 1];
+            if (prev && !prev.size && !prev.brand) pLines.pop();
+            sizes.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).forEach(size => {
+                pLines.push({ ...blankLine(prev), size });
+            });
+            renderPurchaseLines();
+        }
+
+        function validLines() {
+            const bad = pLines.findIndex(l => !l.brand.trim() || !String(l.size).trim() || !(parseFloat(l.price) > 0) || !(parseInt(l.qty) > 0));
+            if (bad >= 0) { toast(`Line ${bad + 1}: fill brand, size, selling price and quantity.`, 4000); return false; }
+            return true;
+        }
+
+        async function savePurchase() {
+            const p = editingPurchase;
+            const supplier = document.getElementById('pSupplier').value.trim();
+            if (!supplier) { toast('Enter the supplier name.'); return false; }
+            if (!validLines()) return false;
+            const btn = document.getElementById('pSave');
+            btn.disabled = true;
+            try {
+                const head = { supplier, bill_no: document.getElementById('pBillNo').value.trim() || null, bill_date: document.getElementById('pBillDate').value || null };
+                if (p.id) {
+                    const { error } = await db.from('purchases').update(head).eq('id', p.id);
+                    if (error) throw error;
+                } else {
+                    const { data, error } = await db.from('purchases').insert(head).select().single();
+                    if (error) throw error;
+                    p.id = data.id;
+                }
+                Object.assign(p, head);
+
+                const file = document.getElementById('pPhoto').files[0];
+                if (file) {
+                    if (file.size > 10 * 1024 * 1024) throw new Error('Bill photo is larger than 10 MB');
+                    const path = `${p.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                    const { error: upErr } = await db.storage.from('bills').upload(path, file, { contentType: file.type });
+                    if (upErr) throw upErr;
+                    const { error } = await db.from('purchases').update({ photo_path: path }).eq('id', p.id);
+                    if (error) throw error;
+                    p.photo_path = path;
+                    document.getElementById('pPhoto').value = '';
+                }
+
+                const { error: delErr } = await db.from('purchase_lines').delete().eq('purchase_id', p.id);
+                if (delErr) throw delErr;
+                const rows = pLines.map(l => ({
+                    purchase_id: p.id, brand: l.brand.trim().toUpperCase(), type: l.type, category: l.category,
+                    size: String(l.size).trim().toUpperCase(), color: l.color.trim().toUpperCase() || null,
+                    price: parseFloat(l.price), qty: parseInt(l.qty), barcode: l.barcode.trim() || null
+                }));
+                const { error: insErr } = await db.from('purchase_lines').insert(rows);
+                if (insErr) throw insErr;
+
+                await loadPurchases();
+                toast('Draft saved');
+                return true;
+            } catch (err) {
+                fail(err, 'Saving bill');
+                return false;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function commitPurchase() {
+            if (!(await savePurchase())) return;
+            const pcs = pLines.reduce((s, l) => s + (parseInt(l.qty) || 0), 0);
+            if (!confirm(`Add ${pcs} pieces from ${editingPurchase.supplier} to stock? This can't be undone from here.`)) return;
+            const btn = document.getElementById('pCommit');
+            btn.disabled = true;
+            const { error } = await db.rpc('commit_purchase', { p_purchase: editingPurchase.id });
+            btn.disabled = false;
+            if (error) { fail(error, 'Adding to stock'); return; }
+            await Promise.all([loadInventory(), loadPurchases()]);
+            renderBrandList();
+            toast(`${pcs} pieces added to stock`);
+            closePurchase();
+        }
+
+        async function deletePurchase() {
+            if (!editingPurchase?.id || !confirm('Delete this draft bill?')) return;
+            const { error, count } = await db.from('purchases').delete({ count: 'exact' }).eq('id', editingPurchase.id);
+            if (error) { fail(error, 'Delete'); return; }
+            if (count === 0) { toast('Only the owner can delete drafts.'); return; }
+            await loadPurchases();
+            closePurchase();
+        }
+
+        // ================= CUSTOMERS & UDHAAR =================
+        function renderCustomers() {
+            const q = (document.getElementById('custFilter')?.value || '').toLowerCase().trim();
+            const owes = document.getElementById('custOwesOnly')?.checked;
+            const rows = customers.filter(c => (!owes || c.due > 0) && [c.name, c.phone].some(v => (v || '').toLowerCase().includes(q)));
+            const tbody = document.getElementById('customerTable');
+            if (rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">No customers found</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.slice(0, 500).map(c => `
+                <tr>
+                    <td><b>${esc(c.name)}</b></td>
+                    <td>${esc(c.phone || '—')}</td>
+                    <td class="hide-sm">${c.bills}</td>
+                    <td class="hide-sm">${day(c.last_visit)}</td>
+                    <td style="font-weight:bold; color:${c.due > 0 ? '#e11d48' : '#16a34a'};">${c.due > 0 ? inr(c.due) : '—'}</td>
+                    <td style="text-align:right;"><button type="button" class="btn btn-sm btn-light" onclick="openCustomer(${c.id})">Open</button></td>
+                </tr>`).join('');
+        }
+
+        async function openCustomer(id) {
+            const c = customers.find(x => x.id === id);
+            if (!c) return;
+            const [{ data: bills, error: e1 }, { data: pays, error: e2 }] = await Promise.all([
+                db.from('sales').select('*, sale_items(*)').eq('customer_id', id).order('created_at', { ascending: false }).limit(100),
+                db.from('udhaar_payments').select('*').eq('customer_id', id).order('created_at', { ascending: false })
+            ]);
+            if (e1 || e2) { fail(e1 || e2, 'Loading customer'); return; }
+            const box = document.getElementById('custDetail');
+            box.style.display = 'block';
+            box.innerHTML = `
+                <div class="flex-between" style="margin-bottom: 10px;">
+                    <h3>${esc(c.name)} · ${esc(c.phone || '')}</h3>
+                    <span style="font-weight:bold; color:${c.due > 0 ? '#e11d48' : '#16a34a'};">Udhaar due: ${inr(Math.max(c.due, 0))}</span>
+                </div>
+                ${c.due > 0 ? `
+                <form onsubmit="receiveUdhaar(event, ${c.id})" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 14px;">
+                    <input type="number" id="udAmt" min="1" max="${c.due}" value="${c.due}" required style="max-width:120px;">
+                    <select id="udMode" style="width:auto;"><option>Cash</option><option>UPI</option></select>
+                    <input type="text" id="udNote" placeholder="Note (optional)" style="max-width:200px;">
+                    <button type="submit" class="btn btn-emerald">Receive payment</button>
+                    <button type="button" class="btn btn-light" onclick="remindUdhaar(${c.id})">WhatsApp reminder</button>
+                </form>` : ''}
+                <div class="grid-2">
+                    <div>
+                        <h3 style="margin-bottom:6px;">Bills</h3>
+                        <ul class="list">${bills.length ? bills.map(b => `<li><b>${esc(b.bill_no)} · ${esc(b.pay_mode)}</b><span>${when(b.created_at)} · ${inr(b.total)}<br>${esc((b.sale_items || []).map(i => `${i.name} (${i.size}) x${i.qty}`).join(', '))}</span></li>`).join('') : '<li class="muted">No bills</li>'}</ul>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom:6px;">Udhaar payments received</h3>
+                        <ul class="list">${pays.length ? pays.map(p => `<li><b>${inr(p.amount)} · ${esc(p.mode)}</b><span>${when(p.created_at)}${p.note ? ' · ' + esc(p.note) : ''}</span></li>`).join('') : '<li class="muted">None yet</li>'}</ul>
+                    </div>
+                </div>`;
+            box.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function receiveUdhaar(e, id) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById('udAmt').value);
+            if (!(amount > 0)) return;
+            const { error } = await db.from('udhaar_payments').insert({
+                customer_id: id, amount,
+                mode: document.getElementById('udMode').value,
+                note: document.getElementById('udNote').value.trim() || null
+            });
+            if (error) { fail(error, 'Saving payment'); return; }
+            await loadCustomers();
+            renderCustomers();
+            openCustomer(id);
+            toast(`${inr(amount)} received`);
+        }
+
+        function remindUdhaar(id) {
+            const c = customers.find(x => x.id === id);
+            if (!c || !c.phone) return;
+            const msg = `Namaste ${c.name}, your pending amount at GARMENT STORE is ₹${c.due}. Please pay at your convenience. Thank you!`;
+            window.open(`https://wa.me/91${c.phone.slice(-10)}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        // ================= SALES HISTORY =================
+        function renderHistory() {
+            const tbody = document.getElementById('historyTable');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (sales.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 20px;">No invoices found</td></tr>';
+                return;
+            }
+
+            sales.forEach(inv => {
+                const tr = document.createElement('tr');
+                const itemsStr = inv.items.map(i => `${i.name} (${i.size}) x ${i.qty}`).join(', ');
+                tr.innerHTML = `
+                    <td style="font-family: monospace; font-weight: bold; color: #4f46e5;">${esc(inv.bill_no)}</td>
+                    <td style="color: #64748b; font-size: 11px;">${when(inv.created_at)}</td>
+                    <td><strong>${esc(inv.customer)}</strong></td>
+                    <td class="hide-sm" style="font-size: 11px; color: #475569;">${esc(itemsStr)}</td>
+                    <td><span class="pill">${esc(inv.pay_mode)}</span></td>
+                    <td style="font-weight: bold;">${inr(inv.total)}</td>
+                    <td style="text-align: right;">
+                        <button type="button" class="btn btn-emerald btn-sm" onclick="sendWhatsApp(${inv.id})">WhatsApp</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function sendWhatsApp(id) {
+            const inv = sales.find(s => s.id === id);
+            if (!inv) return;
+            let msg = `*GARMENT STORE INVOICE*\nInvoice: ${inv.bill_no}\nDate: ${when(inv.created_at)}\nCustomer: ${inv.customer}\n`;
+            inv.items.forEach(i => { msg += `${i.name} [${i.size}] x ${i.qty} = ₹${Number(i.price) * i.qty}\n`; });
+            if (Number(inv.discount) > 0) msg += `Discount: ₹${Number(inv.discount)}\n`;
+            msg += `*Total: ₹${inv.total}*\nPayment: ${inv.pay_mode}\nThank you for your visit!`;
+            const phone = (inv.phone || '').replace(/[^0-9]/g, '');
+            const url = phone.length >= 10 ? `https://wa.me/91${phone.slice(-10)}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+            window.open(url, '_blank');
+        }
+
+        // ================= STOCK LOG =================
+        function renderMovements() {
+            const q = (document.getElementById('movFilter')?.value || '').toLowerCase().trim();
+            const rows = movements.filter(m => [m.item_name, m.reason, m.by_email].some(v => (v || '').toLowerCase().includes(q)));
+            const tbody = document.getElementById('movementTable');
+            if (rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:20px;">No stock changes yet</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(m => `
+                <tr>
+                    <td style="font-size:11px; color:#64748b; white-space:nowrap;">${when(m.created_at)}</td>
+                    <td><b>${esc(m.item_name)}</b></td>
+                    <td class="${m.change > 0 ? 'plus' : 'minus'}">${m.change > 0 ? '+' : ''}${m.change}</td>
+                    <td>${m.stock_after}</td>
+                    <td>${esc(m.reason)}</td>
+                    <td class="hide-sm" style="font-size:11px; color:#64748b;">${esc(m.by_email || '—')}</td>
+                </tr>`).join('');
+        }
+
+        // ================= STAFF (OWNER) =================
+        function renderStaff() {
+            const me = document.getElementById('userEmail').innerText.toLowerCase();
+            document.getElementById('staffList').innerHTML = staff.map(s => `
+                <li><b>${esc(s.email)}</b>
+                    <span>${s.role === 'owner' ? 'Owner' : 'Staff'} · added ${day(s.added_at)}
+                    ${s.email !== me ? ` · <a href="javascript:void(0)" onclick="removeStaff('${esc(s.email)}')" style="color:#e11d48;">remove</a>` : ''}</span></li>`).join('');
+        }
+
+        async function addStaff(e) {
+            e.preventDefault();
+            const email = document.getElementById('staffEmail').value.trim().toLowerCase();
+            const { error } = await db.from('staff').upsert({ email, role: document.getElementById('staffRole').value });
+            if (error) { fail(error, 'Adding staff'); return; }
+            document.getElementById('staffEmail').value = '';
+            await loadStaff();
+            renderStaff();
+            toast(`${email} added. They can now create an account with this email.`, 4000);
+        }
+
+        async function removeStaff(email) {
+            if (!confirm(`Remove ${email}? They will lose access immediately.`)) return;
+            const { error } = await db.from('staff').delete().eq('email', email);
+            if (error) { fail(error, 'Removing staff'); return; }
+            await loadStaff();
+            renderStaff();
+        }
+
+        // ================= CSV & BACKUP =================
+        const csvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+        function download(name, text, type) {
+            const blob = new Blob([text], { type });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            a.click();
+        }
+
+        function exportInventoryCSV() {
+            let csv = 'Barcode,Name,Brand,Type,Category,Size,Color,Selling Price,Stock Quantity (Pieces),Reorder Level,Last Sold,Note\n';
+            inventory.forEach(i => {
+                csv += [i.barcode, i.name, i.brand, i.type, i.category, i.size, i.color].map(csvCell).join(',') +
+                    `,${i.price || 0},${i.stock || 0},${i.reorder_level ?? ''},${csvCell(i.last_sold_at ? day(i.last_sold_at) : '')},${csvCell(i.note)}\n`;
+            });
+            download(`Store_Inventory_${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv');
+        }
+
+        function exportSalesCSV() {
+            let csv = 'Bill No,Date,Customer,Mobile,Items,Subtotal,Discount,Total,Payment\n';
+            sales.forEach(s => {
+                csv += [s.bill_no, when(s.created_at), s.customer, s.phone, s.items.map(i => `${i.name} (${i.size}) x${i.qty}`).join('; ')].map(csvCell).join(',') +
+                    `,${Number(s.subtotal)},${Number(s.discount)},${s.total},${csvCell(s.pay_mode)}\n`;
+            });
+            download(`Store_Sales_${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv');
+        }
+
+        async function exportJSONBackup() {
+            await Promise.all([loadAll(), loadPurchases(), loadMovements()]);
+            download(`Garment_POS_Backup_${new Date().toISOString().slice(0, 10)}.json`,
+                JSON.stringify({ inventory, sales, customers, purchases, movements }, null, 2), 'application/json');
+        }
+
+        function parseCSV(text) {
+            const rows = [];
+            let row = [], cell = '', q = false;
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                if (q) {
+                    if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+                    else if (c === '"') q = false;
+                    else cell += c;
+                } else if (c === '"') q = true;
+                else if (c === ',') { row.push(cell); cell = ''; }
+                else if (c === '\n' || c === '\r') {
+                    if (c === '\r' && text[i + 1] === '\n') i++;
+                    row.push(cell); rows.push(row); row = []; cell = '';
+                } else cell += c;
+            }
+            if (cell || row.length) { row.push(cell); rows.push(row); }
+            return rows.filter(r => r.some(v => v.trim()));
+        }
+
+        async function importCSV() {
+            const file = document.getElementById('importFile').files[0];
+            const msg = document.getElementById('importMsg');
+            if (!file) { msg.innerText = 'Choose a CSV file first.'; return; }
+            const [header, ...rows] = parseCSV(await file.text());
+            const col = name => header.findIndex(h => h.trim().toLowerCase().startsWith(name));
+            const ix = {
+                barcode: col('barcode'), name: col('name'), brand: col('brand'), type: col('type'), category: col('category'),
+                size: col('size'), color: col('color'), price: col('selling'), stock: col('stock')
+            };
+            if (ix.barcode < 0 || ix.price < 0 || ix.stock < 0) { msg.innerText = 'CSV needs Barcode, Selling Price and Stock columns.'; return; }
+            const get = (r, k) => ix[k] >= 0 ? (r[ix[k]] || '').trim() : '';
+
+            const records = rows.map(r => {
+                const cat = get(r, 'category');
+                return {
+                    barcode: get(r, 'barcode'),
+                    name: get(r, 'name') || `${get(r, 'brand')} ${get(r, 'type')}`.trim(),
+                    brand: get(r, 'brand') || null,
+                    type: get(r, 'type') || null,
+                    category: ['Men', 'Women', 'Kids'].includes(cat) ? cat : 'Men',
+                    size: get(r, 'size') || 'Free',
+                    color: (get(r, 'color') === '-' ? '' : get(r, 'color')) || null,
+                    price: parseFloat(get(r, 'price')) || 0,
+                    stock: Math.max(0, parseInt(get(r, 'stock')) || 0)
+                };
+            }).filter(r => r.barcode && r.name);
+
+            const btn = document.getElementById('importBtn');
+            btn.disabled = true;
+            msg.innerText = `Importing ${records.length} rows…`;
+            for (let i = 0; i < records.length; i += 200) {
+                const { error } = await db.from('items').upsert(records.slice(i, i + 200), { onConflict: 'barcode' });
+                if (error) { btn.disabled = false; msg.innerText = ''; fail(error, 'Import'); return; }
+            }
+            btn.disabled = false;
+            await loadAll();
+            msg.innerText = `Imported ${records.length} rows. Stock now has ${inventory.length} styles.`;
+        }
+
+        // Boot: fill type dropdowns, then show login or the dashboard
+        document.querySelectorAll('.type-select').forEach(s => s.innerHTML = TYPES.map(t => `<option>${t}</option>`).join(''));
+        db.auth.onAuthStateChange((_event, session) => { setTimeout(() => onSession(session), 0); });
+    </script>
+</body>
+</html>
