@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Garment POS - Retail Inventory & Analytics Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
     <style>
         /* Look and feel matches MedStock: light surface, teal accent, sidebar on desktop, bottom tabs on phones */
         :root {
@@ -133,10 +134,33 @@
         body.is-owner .owner-only { display: revert !important; }
         body.is-owner .nav-btn.owner-only { display: flex !important; }
 
+        /* Barcode labels */
+        .label-queue td { vertical-align: middle; }
+        #labelSheet { display: none; }
+        .lbl { overflow: hidden; color: #000; background: #fff; font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.1; }
+        .lbl .l-name { font-size: 8pt; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .lbl .l-meta { font-size: 7pt; white-space: nowrap; }
+        .lbl .l-price { font-size: 10pt; font-weight: 800; }
+        .lbl svg { display: block; max-width: 100%; }
+        .lbl-50x25 { width: 50mm; height: 25mm; padding: 1mm 2mm; }
+        .lbl-38x25 { width: 38mm; height: 25mm; padding: 1mm 1.5mm; }
+        .lbl-38x25 .l-name { font-size: 7pt; }
+        .lbl-a4 { width: 38.1mm; height: 21.2mm; padding: .8mm 1.5mm; }
+        .lbl-a4 .l-name, .lbl-a4 .l-meta { font-size: 6.5pt; }
+        .lbl-a4 .l-price { font-size: 8.5pt; }
+        .sheet-a4 { display: grid; grid-template-columns: repeat(5, 38.1mm); grid-auto-rows: 21.2mm; column-gap: 2.5mm; }
+        .sheet-roll .lbl { break-after: page; page-break-after: always; }
+        .sheet-roll .lbl:last-child { break-after: auto; page-break-after: auto; }
+
         @media print {
             body * { visibility: hidden; }
             #receiptArea, #receiptArea * { visibility: visible; color: #000 !important; }
             #receiptArea { position: absolute; left: 0; top: 0; width: 78mm; padding: 4px; font-size: 11px; background: #fff; }
+            body.print-labels .shell, body.print-labels #receiptArea, body.print-labels #toast { display: none !important; }
+            body.print-labels #labelSheet { display: block; }
+            body.print-labels #labelSheet.sheet-a4 { display: grid; }
+            body.print-labels #labelSheet, body.print-labels #labelSheet * { visibility: visible; }
+            body.print-labels { background: #fff; }
         }
     </style>
 </head>
@@ -363,6 +387,28 @@
                 </form>
             </div>
 
+            <div class="card" id="labelCard" style="display:none;">
+                <div class="flex-between" style="margin-bottom: 10px;">
+                    <h3>Barcode labels to print <span class="pill" id="labelCount">0</span></h3>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
+                        <select id="labelSize" onchange="saveLabelSize()" style="width:auto;">
+                            <option value="50x25">Thermal 50 × 25 mm</option>
+                            <option value="38x25">Thermal 38 × 25 mm</option>
+                            <option value="a4">A4 sheet, 65 per page</option>
+                        </select>
+                        <button type="button" class="btn btn-light btn-sm" onclick="clearLabels()">Clear</button>
+                        <button type="button" class="btn btn-indigo" onclick="printLabels()">🖨 Print labels</button>
+                    </div>
+                </div>
+                <p class="muted" style="margin-bottom: 10px;">Set how many stickers each item needs. In the print window pick your label printer, set scale to 100% (or "Actual size") and turn off headers and footers.</p>
+                <div class="table-wrap">
+                    <table class="label-queue">
+                        <thead><tr><th>Item</th><th>Size</th><th>Price</th><th class="hide-sm">Barcode</th><th>Labels</th><th></th></tr></thead>
+                        <tbody id="labelTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="flex-between" style="margin-bottom: 12px;">
                     <h3>Store Stock List (<span id="invCount">0</span> styles | <span id="invPiecesCount" style="color:var(--accent); font-weight:800;">0</span> Pieces)</h3>
@@ -375,6 +421,7 @@
                             <option value="out">Out of stock</option>
                         </select>
                         <input type="text" id="invFilter" oninput="renderInventory()" placeholder="Filter stock..." style="width: 180px;">
+                        <button type="button" class="btn btn-light btn-sm" onclick="labelShown()" title="Add a label for every piece of the items shown">🏷 Labels for shown</button>
                     </div>
                 </div>
                 <div class="table-wrap">
@@ -444,6 +491,7 @@
                 <div class="flex-between" style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
                     <strong id="pTotals">0 pieces</strong>
                     <div style="display:flex; gap:8px; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-light" onclick="labelsForPurchase(editingPurchase.id)" id="pLabels" style="display:none;">🏷 Print labels for this bill</button>
                         <button type="button" class="btn btn-danger owner-only" onclick="deletePurchase()" id="pDelete">Delete draft</button>
                         <button type="button" class="btn btn-indigo" onclick="savePurchase()" id="pSave">Save draft</button>
                         <button type="button" class="btn btn-emerald" onclick="commitPurchase()" id="pCommit">Add to stock</button>
@@ -552,6 +600,7 @@
     </div>
 
     <div id="toast"></div>
+    <div id="labelSheet"></div>
 
     <datalist id="brandList"></datalist>
 
@@ -590,6 +639,9 @@
         const SUPABASE_URL = 'https://qvqhmkhsufmtdqorrlmf.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_spvAObGCH0MOA0Ca4M5-qw_mmv-xtK4';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        document.addEventListener('DOMContentLoaded', () => {
+            try { const v = localStorage.getItem('labelSize'); if (v) document.getElementById('labelSize').value = v; } catch (e) {}
+        });
 
         const TYPES = ['Shirt', 'T-Shirt', 'Jeans', 'Trouser', 'Cargo', 'Kurta', 'Short Kurta', 'Jacket', 'Other'];
         const SLOW_DAYS = 90;
@@ -1151,11 +1203,13 @@
             const filtered = inventory.filter(i => matches(i, query) && keep(i));
 
             if (filtered.length === 0) {
+                shownInventory = [];
                 tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted); padding: 20px;">No matching stock items</td></tr>';
                 return;
             }
 
-            filtered.slice(0, 500).forEach(it => {
+            shownInventory = filtered.slice(0, 500);
+            shownInventory.forEach(it => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="hide-sm" style="font-family: monospace; font-weight: bold; color: var(--muted);">${esc(it.barcode || '-')}</td>
@@ -1177,11 +1231,118 @@
                     <td style="text-align: right; white-space: nowrap;">
                         <button type="button" class="btn btn-sm btn-light" onclick="adjustStock(${it.id}, -1)">-</button>
                         <button type="button" class="btn btn-sm btn-light" onclick="adjustStock(${it.id}, 1)">+</button>
+                        <button type="button" class="btn btn-sm btn-light" title="Print barcode label" onclick="queueLabel(${it.id})">🏷</button>
                         <button type="button" class="btn btn-danger btn-sm owner-only" style="margin-left: 6px;" onclick="deleteGarment(${it.id})">Delete</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
+        }
+
+
+        // ================= BARCODE LABELS =================
+        // item id -> number of stickers to print
+        const labelQueue = new Map();
+        let shownInventory = [];
+
+        function queueLabel(id, qty) {
+            const it = inventory.find(i => i.id === id);
+            if (!it) return;
+            if (!it.barcode) { toast('This item has no barcode yet. Add one first.'); return; }
+            const n = qty ?? Math.max(it.stock || 0, 1);
+            labelQueue.set(id, (labelQueue.get(id) || 0) + n);
+            renderLabels();
+            if (qty === undefined) toast(`${n} label(s) added for ${it.name}`);
+        }
+
+        function labelShown() {
+            let pcs = 0;
+            shownInventory.forEach(it => {
+                if (it.barcode && (it.stock || 0) > 0) { labelQueue.set(it.id, (labelQueue.get(it.id) || 0) + it.stock); pcs += it.stock; }
+            });
+            renderLabels();
+            toast(pcs ? `${pcs} label(s) added` : 'No items with stock shown');
+        }
+
+        async function labelsForPurchase(purchaseId) {
+            const { data, error } = await db.from('purchase_lines').select('item_id, qty').eq('purchase_id', purchaseId);
+            if (error) { fail(error, 'Loading bill lines'); return; }
+            (data || []).forEach(l => { if (l.item_id) queueLabel(l.item_id, l.qty); });
+            if (editingPurchase) closePurchase();
+            await openView('inventory');
+            document.getElementById('labelCard').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function setLabelQty(id, v) {
+            const n = Math.max(parseInt(v) || 0, 0);
+            if (n === 0) labelQueue.delete(id); else labelQueue.set(id, n);
+            renderLabels();
+        }
+
+        function clearLabels() { labelQueue.clear(); renderLabels(); }
+
+        function saveLabelSize() {
+            try { localStorage.setItem('labelSize', document.getElementById('labelSize').value); } catch (e) {}
+        }
+
+        function renderLabels() {
+            const card = document.getElementById('labelCard');
+            const total = [...labelQueue.values()].reduce((s, n) => s + n, 0);
+            card.style.display = labelQueue.size ? 'block' : 'none';
+            document.getElementById('labelCount').innerText = total + ' stickers';
+            document.getElementById('labelTable').innerHTML = [...labelQueue].map(([id, n]) => {
+                const it = inventory.find(i => i.id === id);
+                if (!it) return '';
+                return `<tr>
+                    <td><b>${esc(it.name)}</b></td>
+                    <td>${esc(it.size || '-')}</td>
+                    <td>${inr(it.price)}</td>
+                    <td class="hide-sm" style="font-family: monospace;">${esc(it.barcode)}</td>
+                    <td><input class="small-input" type="number" min="0" value="${n}" onchange="setLabelQty(${id}, this.value)"></td>
+                    <td style="text-align:right;"><button type="button" class="btn btn-sm btn-danger" onclick="setLabelQty(${id}, 0)">Remove</button></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function printLabels() {
+            if (!labelQueue.size) return;
+            if (typeof JsBarcode !== 'function') { toast('Barcode tool did not load. Check the internet connection and refresh.', 5000); return; }
+            const size = document.getElementById('labelSize').value;
+            const dims = { '50x25': { page: '50mm 25mm', h: 34, w: 1.3 }, '38x25': { page: '38mm 25mm', h: 32, w: 1 }, 'a4': { page: 'A4', h: 26, w: 1 } }[size];
+            const sheet = document.getElementById('labelSheet');
+            sheet.className = size === 'a4' ? 'sheet-a4' : 'sheet-roll';
+            const parts = [];
+            for (const [id, n] of labelQueue) {
+                const it = inventory.find(i => i.id === id);
+                if (!it) continue;
+                const meta = [it.size && 'Size ' + it.size, it.color].filter(Boolean).join(' · ');
+                const one = `<div class="lbl lbl-${size}">
+                    <div class="l-name">${esc(it.name)}</div>
+                    ${meta ? `<div class="l-meta">${esc(meta)}</div>` : ''}
+                    <svg class="l-code" data-code="${esc(it.barcode)}"></svg>
+                    <div class="l-price">${inr(it.price)}</div>
+                </div>`;
+                for (let k = 0; k < n; k++) parts.push(one);
+            }
+            sheet.innerHTML = parts.join('');
+            let bad = 0;
+            sheet.querySelectorAll('svg.l-code').forEach(svg => {
+                try {
+                    JsBarcode(svg, svg.dataset.code, { format: 'CODE128', height: dims.h, width: dims.w, margin: 0, fontSize: 11, textMargin: 0, displayValue: true });
+                } catch (e) { bad++; }
+            });
+            if (bad) toast(`${bad} label(s) have a barcode that can't be printed`, 5000);
+
+            let pageStyle = document.getElementById('labelPageStyle');
+            if (!pageStyle) { pageStyle = document.createElement('style'); pageStyle.id = 'labelPageStyle'; document.head.appendChild(pageStyle); }
+            pageStyle.textContent = size === 'a4'
+                ? '@page { size: A4; margin: 10.7mm 4.75mm; }'
+                : `@page { size: ${dims.page}; margin: 0; }`;
+            document.body.classList.add('print-labels');
+            window.print();
+            document.body.classList.remove('print-labels');
+            pageStyle.textContent = '';
+            sheet.innerHTML = '';
         }
 
         // ================= PURCHASES (SUPPLIER BILLS) =================
@@ -1240,6 +1401,7 @@
             ['pSupplier', 'pBillNo', 'pBillDate', 'pPhoto'].forEach(id => document.getElementById(id).disabled = ro);
             ['pAddLine', 'pAddRun', 'pSave', 'pCommit', 'pDelete'].forEach(id => document.getElementById(id).style.display = ro ? 'none' : '');
             if (!p.id) document.getElementById('pDelete').style.display = 'none';
+            document.getElementById('pLabels').style.display = ro ? '' : 'none';
 
             const link = document.getElementById('pPhotoLink');
             link.innerHTML = '';
@@ -1370,7 +1532,9 @@
             await Promise.all([loadInventory(), loadPurchases()]);
             renderBrandList();
             toast(`${pcs} pieces added to stock`);
+            const billId = editingPurchase.id;
             closePurchase();
+            if (confirm(`Print barcode labels for these ${pcs} pieces now?`)) await labelsForPurchase(billId);
         }
 
         async function deletePurchase() {
