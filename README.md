@@ -4,7 +4,7 @@ Online version of the store's offline Garment POS. A single page (`public/index.
 
 ## Features
 
-- **POS billing** with barcode scan, flat discount, Cash / UPI / Udhaar, thermal slip printing and WhatsApp bills
+- **POS billing** with barcode scan, flat discount, Cash / UPI / Udhaar or a split of all three on one bill (the unpaid part goes to the customer's udhaar), change to return, thermal slip printing and WhatsApp bills
 - **Stock** list with inline price, category and reorder-level edits, and flags for rows that need a check
 - **Supplier purchase bills**: enter lines (or a size set like M, L, XL), attach a bill photo, then "Add to stock". Matching items get stock added; new ones are created
 - **Customers & udhaar**: customers are saved from the mobile number at billing; see bills, receive udhaar payments, send WhatsApp reminders
