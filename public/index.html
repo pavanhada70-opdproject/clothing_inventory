@@ -109,6 +109,14 @@
         .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; max-height: 480px; overflow-y: auto; margin-top: .75rem; }
         .catalog-item { border: 1px solid var(--border); border-radius: 8px; padding: .65rem; cursor: pointer; background: var(--surface); font-size: .85rem; }
         .catalog-item:hover { border-color: var(--accent); }
+        .pay-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
+        .pay-mode { padding: .5rem .25rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: .85rem; cursor: pointer; white-space: nowrap; }
+        .pay-mode.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-weight: 700; }
+        .split-box { border: 1px solid var(--border); border-radius: 8px; padding: .6rem; margin-bottom: 10px; display: grid; gap: 6px; background: var(--bg); }
+        .split-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .9rem; }
+        .split-row input { width: 110px; text-align: right; padding: .35rem .5rem; }
+        .split-quick { display: flex; gap: 6px; flex-wrap: wrap; }
+        #splitMsg.bad { color: var(--bad); }
 
         /* Tables */
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
@@ -332,11 +340,27 @@
                             <span id="totalVal" style="color: var(--accent);">₹0</span>
                         </div>
 
-                        <div style="display: flex; gap: 12px; margin: 10px 0; font-size: 12px;">
-                            <label><input type="radio" name="payType" value="Cash" checked> Cash</label>
-                            <label><input type="radio" name="payType" value="UPI"> UPI</label>
-                            <label><input type="radio" name="payType" value="Udhaar"> Udhaar</label>
+                        <div class="pay-modes" role="radiogroup" aria-label="Payment">
+                            <button type="button" class="pay-mode active" data-mode="Cash" onclick="setPayMode('Cash')">💵 Cash</button>
+                            <button type="button" class="pay-mode" data-mode="UPI" onclick="setPayMode('UPI')">📱 UPI</button>
+                            <button type="button" class="pay-mode" data-mode="Udhaar" onclick="setPayMode('Udhaar')">📒 Udhaar</button>
+                            <button type="button" class="pay-mode" data-mode="Split" onclick="setPayMode('Split')">➗ Split</button>
                         </div>
+                        <div id="splitBox" class="split-box" style="display:none;">
+                            <div class="split-row"><span>💵 Cash</span><input type="number" id="splitCash" min="0" step="1" placeholder="0" oninput="calcSplit()"></div>
+                            <div class="split-row"><span>📱 UPI</span><input type="number" id="splitUpi" min="0" step="1" placeholder="0" oninput="calcSplit()"></div>
+                            <div class="split-row"><span>📒 Udhaar (balance)</span><b id="splitUdhaar">₹0</b></div>
+                            <div class="split-quick">
+                                <button type="button" class="btn btn-sm btn-light" onclick="splitFill('cash')">Rest in cash</button>
+                                <button type="button" class="btn btn-sm btn-light" onclick="splitFill('upi')">Rest in UPI</button>
+                            </div>
+                            <div id="splitMsg" class="muted"></div>
+                        </div>
+                        <div id="cashChangeBox" class="split-row" style="margin-bottom: 8px;">
+                            <span class="muted">Cash received (optional)</span>
+                            <input type="number" id="cashGiven" min="0" step="1" placeholder="₹" oninput="calcChange()">
+                        </div>
+                        <div id="cashChange" class="muted" style="text-align:right; margin: -4px 0 8px;"></div>
 
                         <button type="button" class="btn btn-emerald" style="width: 100%; padding: 10px;" onclick="checkout()" id="checkoutBtn">
                             Complete Sale & Print Slip
@@ -681,6 +705,7 @@
         let staff = [];
         let myRole = null;
         let cart = [];
+        let payMode = 'Cash';
         let channel = null;
         let editingPurchase = null;
         let pLines = [];
@@ -689,6 +714,11 @@
         const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN');
         const when = d => d ? new Date(d).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
         const day = d => d ? new Date(d).toLocaleDateString('en-IN') : '—';
+        // "Cash ₹500 + UPI ₹300 + Udhaar ₹600" for split bills, else the single mode
+        const payLabel = s => {
+            const parts = [['Cash', s.paid_cash], ['UPI', s.paid_upi], ['Udhaar', s.udhaar]].filter(([, v]) => Number(v) > 0);
+            return parts.length > 1 ? parts.map(([k, v]) => `${k} ${inr(v)}`).join(' + ') : s.pay_mode;
+        };
         const daysSince = d => d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : Infinity;
 
         function toast(msg, ms = 2500) {
@@ -784,7 +814,7 @@
                 .order('created_at', { ascending: false })
                 .limit(500);
             if (error) { fail(error, 'Loading sales'); return; }
-            sales = data.map(s => ({ ...s, total: Number(s.total), items: s.sale_items || [] }));
+            sales = data.map(s => ({ ...s, total: Number(s.total), paid_cash: Number(s.paid_cash || 0), paid_upi: Number(s.paid_upi || 0), udhaar: Number(s.udhaar || 0), items: s.sale_items || [] }));
         }
 
         async function loadCustomers() {
@@ -895,7 +925,8 @@
 
             const todaySales = sales.filter(s => new Date(s.created_at) >= startOfToday);
             document.getElementById('dashTodaySales').innerText = inr(todaySales.reduce((acc, s) => acc + s.total, 0));
-            document.getElementById('dashTodayBills').innerText = `${todaySales.length} Bill(s) Generated Today`;
+            const sumOf = k => todaySales.reduce((acc, s) => acc + s[k], 0);
+            document.getElementById('dashTodayBills').innerText = `${todaySales.length} bill(s) · Cash ${inr(sumOf('paid_cash'))} · UPI ${inr(sumOf('paid_upi'))} · Udhaar ${inr(sumOf('udhaar'))}`;
 
             const monthSales = sales.filter(s => new Date(s.created_at) >= thirtyDaysAgo);
             document.getElementById('dashMonthSales').innerText = inr(monthSales.reduce((acc, s) => acc + s.total, 0));
@@ -999,7 +1030,12 @@
             const hint = document.getElementById('custHint');
             if (!c) { hint.innerText = ''; return; }
             document.getElementById('custName').value = c.name;
-            hint.innerHTML = `Returning customer · ${c.bills} bill(s)` + (c.due > 0 ? ` · <b style="color:var(--bad);">Udhaar due ${inr(c.due)}</b>` : '');
+            hint.innerHTML = `Returning customer · ${c.bills} bill(s)` + (c.due > 0 ? ` · <b style="color:var(--bad);">Udhaar due ${inr(c.due)}</b> <a href="javascript:void(0)" onclick="settleDues(${c.id})">Receive dues</a>` : '');
+        }
+
+        async function settleDues(id) {
+            await openView('customers');
+            openCustomer(id);
         }
 
         function addToCart(id) {
@@ -1073,27 +1109,86 @@
 
             document.getElementById('subVal').innerText = inr(sub);
             document.getElementById('totalVal').innerText = inr(tot);
+            calcSplit();
+            calcChange();
+        }
+
+        function billTotal() {
+            const sub = cart.reduce((s, it) => s + (it.price * it.qty), 0);
+            return Math.max(0, sub - (parseFloat(document.getElementById('discVal')?.value) || 0));
+        }
+
+        function setPayMode(mode) {
+            payMode = mode;
+            document.querySelectorAll('.pay-mode').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+            document.getElementById('splitBox').style.display = mode === 'Split' ? 'grid' : 'none';
+            document.getElementById('cashChangeBox').style.display = mode === 'Cash' ? 'flex' : 'none';
+            document.getElementById('cashChange').style.display = mode === 'Cash' ? 'block' : 'none';
+            if (mode === 'Split' && !document.getElementById('splitCash').value && !document.getElementById('splitUpi').value) {
+                document.getElementById('splitCash').focus();
+            }
+            calcSplit();
+            calcChange();
+        }
+
+        // Udhaar is whatever the cash and UPI parts leave unpaid
+        function splitParts() {
+            const cash = Math.max(0, parseFloat(document.getElementById('splitCash').value) || 0);
+            const upi = Math.max(0, parseFloat(document.getElementById('splitUpi').value) || 0);
+            const total = billTotal();
+            return { cash, upi, udhaar: Math.max(0, total - cash - upi), over: cash + upi - total, total };
+        }
+
+        function calcSplit() {
+            if (payMode !== 'Split') return;
+            const p = splitParts();
+            document.getElementById('splitUdhaar').innerText = inr(p.udhaar);
+            const msg = document.getElementById('splitMsg');
+            msg.className = p.over > 0 ? 'muted bad' : 'muted';
+            msg.innerText = p.over > 0 ? `Cash + UPI is ${inr(p.over)} more than the bill. Reduce one of them.` :
+                p.udhaar > 0 ? 'The balance will be added to the customer\'s udhaar. Name and mobile are needed.' : 'Fully paid.';
+        }
+
+        function splitFill(which) {
+            const p = splitParts();
+            const other = which === 'cash' ? p.upi : p.cash;
+            document.getElementById(which === 'cash' ? 'splitCash' : 'splitUpi').value = Math.max(0, p.total - other);
+            calcSplit();
+        }
+
+        function calcChange() {
+            const out = document.getElementById('cashChange');
+            const given = parseFloat(document.getElementById('cashGiven').value) || 0;
+            const total = billTotal();
+            if (payMode !== 'Cash' || !given) { out.innerText = ''; return; }
+            out.innerHTML = given >= total ? `Return to customer: <b style="color:var(--ok);">${inr(given - total)}</b>` :
+                `<span style="color:var(--bad);">${inr(total - given)} short. Use Split to put the rest on UPI or udhaar.</span>`;
         }
 
         async function checkout() {
             if (cart.length === 0) { toast('Cart is empty'); return; }
-            const pay = document.querySelector('input[name="payType"]:checked')?.value || 'Cash';
+            const pay = payMode;
             const name = document.getElementById('custName')?.value.trim() || '';
             const phone = document.getElementById('custPhone')?.value.trim() || '';
-            if (pay === 'Udhaar' && (!name || phone.replace(/[^0-9]/g, '').length < 10)) {
+            const split = pay === 'Split' ? splitParts() : null;
+            if (split && split.over > 0) { toast('Cash + UPI is more than the bill total.', 4000); return; }
+            const hasUdhaar = pay === 'Udhaar' || (split && split.udhaar > 0);
+            if (hasUdhaar && (!name || phone.replace(/[^0-9]/g, '').length < 10)) {
                 toast('For Udhaar, enter the customer name and 10-digit mobile number.', 4000);
                 return;
             }
             const btn = document.getElementById('checkoutBtn');
             btn.disabled = true;
 
-            const { data: sale, error } = await db.rpc('checkout', {
+            const args = {
                 p_customer: name,
                 p_phone: phone,
                 p_discount: parseFloat(document.getElementById('discVal')?.value) || 0,
                 p_pay_mode: pay,
                 p_lines: cart.map(c => ({ item_id: c.id, qty: c.qty }))
-            });
+            };
+            if (split) Object.assign(args, { p_cash: split.cash, p_upi: split.upi });
+            const { data: sale, error } = await db.rpc('checkout', args);
             btn.disabled = false;
             if (error) { fail(error, 'Sale'); await loadInventory(); renderCatalog(); return; }
 
@@ -1106,7 +1201,7 @@
             document.getElementById('recDate').innerText = when(printed.created_at);
             document.getElementById('recCustomer').innerText = printed.customer;
             document.getElementById('recTotal').innerText = printed.total;
-            document.getElementById('recPay').innerText = printed.pay_mode;
+            document.getElementById('recPay').innerText = payLabel(printed);
             document.getElementById('recDiscRow').innerText = Number(printed.discount) > 0 ? `Subtotal ₹${Number(printed.subtotal)} - Discount ₹${Number(printed.discount)}` : '';
             document.getElementById('recDue').innerText = cust && cust.due > 0 ? `Total udhaar due: ₹${cust.due}` : '';
 
@@ -1127,7 +1222,8 @@
             ['custName', 'custPhone'].forEach(id => document.getElementById(id).value = '');
             document.getElementById('custHint').innerText = '';
             document.getElementById('discVal').value = 0;
-            document.querySelector('input[name="payType"][value="Cash"]').checked = true;
+            ['splitCash', 'splitUpi', 'cashGiven'].forEach(id => document.getElementById(id).value = '');
+            setPayMode('Cash');
             await Promise.all([loadInventory(), loadSales()]);
             renderCatalog();
             toast(`Bill ${printed.bill_no} saved`);
@@ -1717,7 +1813,7 @@
                 <div class="grid-2">
                     <div>
                         <h3 style="margin-bottom:6px;">Bills</h3>
-                        <ul class="list">${bills.length ? bills.map(b => `<li><b>${esc(b.bill_no)} · ${esc(b.pay_mode)}</b><span>${when(b.created_at)} · ${inr(b.total)}<br>${esc((b.sale_items || []).map(i => `${i.name} (${i.size}) x${i.qty}`).join(', '))}</span></li>`).join('') : '<li class="muted">No bills</li>'}</ul>
+                        <ul class="list">${bills.length ? bills.map(b => `<li><b>${esc(b.bill_no)} · ${esc(payLabel(b))}</b><span>${when(b.created_at)} · ${inr(b.total)}<br>${esc((b.sale_items || []).map(i => `${i.name} (${i.size}) x${i.qty}`).join(', '))}</span></li>`).join('') : '<li class="muted">No bills</li>'}</ul>
                     </div>
                     <div>
                         <h3 style="margin-bottom:6px;">Udhaar payments received</h3>
@@ -1769,7 +1865,7 @@
                     <td style="color: var(--muted); font-size: 11px;">${when(inv.created_at)}</td>
                     <td><strong>${esc(inv.customer)}</strong></td>
                     <td class="hide-sm" style="font-size: 11px; color: var(--muted);">${esc(itemsStr)}</td>
-                    <td><span class="pill">${esc(inv.pay_mode)}</span></td>
+                    <td><span class="pill">${esc(payLabel(inv))}</span></td>
                     <td style="font-weight: bold;">${inr(inv.total)}</td>
                     <td style="text-align: right;">
                         <button type="button" class="btn btn-emerald btn-sm" onclick="sendWhatsApp(${inv.id})">WhatsApp</button>
@@ -1785,7 +1881,7 @@
             let msg = `*GARMENT STORE INVOICE*\nInvoice: ${inv.bill_no}\nDate: ${when(inv.created_at)}\nCustomer: ${inv.customer}\n`;
             inv.items.forEach(i => { msg += `${i.name} [${i.size}] x ${i.qty} = ₹${Number(i.price) * i.qty}\n`; });
             if (Number(inv.discount) > 0) msg += `Discount: ₹${Number(inv.discount)}\n`;
-            msg += `*Total: ₹${inv.total}*\nPayment: ${inv.pay_mode}\nThank you for your visit!`;
+            msg += `*Total: ₹${inv.total}*\nPayment: ${payLabel(inv)}\nThank you for your visit!`;
             const phone = (inv.phone || '').replace(/[^0-9]/g, '');
             const url = phone.length >= 10 ? `https://wa.me/91${phone.slice(-10)}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
@@ -1860,10 +1956,10 @@
         }
 
         function exportSalesCSV() {
-            let csv = 'Bill No,Date,Customer,Mobile,Items,Subtotal,Discount,Total,Payment\n';
+            let csv = 'Bill No,Date,Customer,Mobile,Items,Subtotal,Discount,Total,Payment,Cash,UPI,Udhaar\n';
             sales.forEach(s => {
                 csv += [s.bill_no, when(s.created_at), s.customer, s.phone, s.items.map(i => `${i.name} (${i.size}) x${i.qty}`).join('; ')].map(csvCell).join(',') +
-                    `,${Number(s.subtotal)},${Number(s.discount)},${s.total},${csvCell(s.pay_mode)}\n`;
+                    `,${Number(s.subtotal)},${Number(s.discount)},${s.total},${csvCell(s.pay_mode)},${s.paid_cash},${s.paid_upi},${s.udhaar}\n`;
             });
             download(`Store_Sales_${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv');
         }
