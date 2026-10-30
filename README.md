@@ -1,10 +1,10 @@
 # Clothing Inventory (Garment POS online)
 
-Online version of the store's offline Garment POS. A single page (`index.html`) that talks directly to its own Supabase project. It is kept separate from the OPD and MedStock projects: own repo, own database, own subdomain.
+Online version of the store's offline Garment POS. A single page (`public/index.html`) that talks directly to its own Supabase project. It is kept separate from the OPD and MedStock projects: own repo, own database, own subdomain.
 
 ## Features
 
-- **POS billing** with barcode scan, flat discount, Cash / UPI / Udhaar, thermal slip printing and WhatsApp bills
+- **POS billing** with barcode scan, flat discount, Cash / UPI / Udhaar or a split of all three on one bill (the unpaid part goes to the customer's udhaar), change to return, thermal slip printing and WhatsApp bills
 - **Stock** list with inline price, category and reorder-level edits, and flags for rows that need a check
 - **Supplier purchase bills**: enter lines (or a size set like M, L, XL), attach a bill photo, then "Add to stock". Matching items get stock added; new ones are created
 - **Customers & udhaar**: customers are saved from the mobile number at billing; see bills, receive udhaar payments, send WhatsApp reminders
@@ -17,9 +17,9 @@ Online version of the store's offline Garment POS. A single page (`index.html`) 
 ## Setup
 
 1. Create a Supabase project and run the files in `supabase/migrations/` in order in the SQL editor. Change the owner email in `0002_medstock_features.sql` first if needed.
-2. Put the project URL and publishable key at the top of the `<script>` in `index.html` (`SUPABASE_URL`, `SUPABASE_KEY`). The publishable key is meant to be public; access is enforced by Row Level Security.
+2. Put the project URL and publishable key at the top of the `<script>` in `public/index.html` (`SUPABASE_URL`, `SUPABASE_KEY`). The publishable key is meant to be public; access is enforced by Row Level Security.
 3. In Supabase → Authentication → URL Configuration, set the Site URL to where the page is hosted.
-4. Host `index.html` on any static host (it has no build step). Open it, create an account with the owner email, confirm it, and sign in.
+4. Host the `public/` folder on any static host (it has no build step). On Railway, `Staticfile` tells Railpack to serve only `public/`, so the SQL and tools are never published. Open it, create an account with the owner email, confirm it, and sign in.
 
 ## Security
 
