@@ -117,6 +117,11 @@
         .split-row input { width: 110px; text-align: right; padding: .35rem .5rem; }
         .split-quick { display: flex; gap: 6px; flex-wrap: wrap; }
         #splitMsg.bad { color: var(--bad); }
+        h3.step { margin-bottom: .75rem; }
+        .list.pick { max-height: 180px; }
+        .list.pick li { cursor: pointer; }
+        .list.pick li:hover b { color: var(--accent); }
+        .row-actions { margin-top: .75rem; }
 
         /* Tables */
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
@@ -296,50 +301,57 @@
 
         <!-- ================= 2. POS BILLING TAB ================= -->
         <section id="view-pos" class="tab-panel">
-            <div class="grid-pos">
+            <!-- Same counter flow as MedStock's OPD dispensing: 1. who, 2. what, 3. how they pay, then recent bills -->
+            <div class="grid-2">
                 <div class="card">
+                    <h3 class="step">1. Customer</h3>
+                    <div class="form-grid" style="margin-bottom: .5rem;">
+                        <label>Mobile / WhatsApp<input type="tel" id="custPhone" inputmode="tel" placeholder="10-digit mobile" oninput="fillCustomerFromPhone(); renderCustPick()" autocomplete="off"></label>
+                        <label>Name<input type="text" id="custName" placeholder="Walk-in Customer" oninput="renderCustPick()" autocomplete="off"></label>
+                    </div>
+                    <ul class="list pick" id="custPick"></ul>
+                    <div id="custHint" class="muted"></div>
+                    <p class="muted" style="margin-top:.5rem;">Leave empty for a walk-in. Name and mobile are needed for udhaar.</p>
+                </div>
+
+                <div class="card">
+                    <div class="flex-between">
+                        <h3 class="step">2. Items</h3>
+                        <a href="javascript:void(0)" onclick="clearCart()" style="font-size: .8rem; color: var(--bad); text-decoration: none;">Empty bill</a>
+                    </div>
                     <div style="display: flex; gap: 8px;">
                         <input type="text" id="posSearch" placeholder="Search garment, brand or scan barcode..." oninput="renderCatalog()" onkeydown="scanToCart(event)">
                         <button type="button" class="btn btn-indigo cam-btn" onclick="openScanner('pos')" title="Scan barcode with camera">📷 Scan</button>
-                        <select id="posCat" onchange="renderCatalog()" style="width: 140px;">
+                        <select id="posCat" onchange="renderCatalog()" style="width: 120px;">
                             <option value="">All Items</option>
                             <option value="Men">Men</option>
                             <option value="Women">Women</option>
                             <option value="Kids">Kids</option>
                         </select>
                     </div>
-                    <div id="catalogList" class="catalog-grid"></div>
+                    <div id="catalogList" class="catalog-grid" style="max-height: 260px;"></div>
+                    <div id="cartList" style="margin-top: .75rem; border-top: 1px solid var(--border);"></div>
                 </div>
+            </div>
 
-                <div class="card flex-between" style="flex-direction: column; align-items: stretch; gap: 12px;">
+            <div class="card">
+                <h3 class="step">3. Payment</h3>
+                <div class="grid-2">
                     <div>
-                        <div class="flex-between" style="border-bottom: 1px solid var(--border); padding-bottom: 8px;">
-                            <strong style="font-size: 14px;">Active Cart</strong>
-                            <a href="javascript:void(0)" onclick="clearCart()" style="font-size: 11px; color: var(--bad); text-decoration: none;">Empty Cart</a>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0;">
-                            <input type="tel" id="custPhone" placeholder="Mobile / WhatsApp" oninput="fillCustomerFromPhone()" list="custPhoneList">
-                            <datalist id="custPhoneList"></datalist>
-                            <input type="text" id="custName" placeholder="Customer Name">
-                        </div>
-                        <div id="custHint" class="muted" style="font-size: 11px; margin-bottom: 6px;"></div>
-                        <div id="cartList" style="max-height: 220px; overflow-y: auto; font-size: 12px;"></div>
-                    </div>
-
-                    <div style="border-top: 1px solid var(--border); padding-top: 10px;">
-                        <div class="flex-between" style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">
-                            <span>Subtotal:</span>
+                        <div class="flex-between muted" style="margin-bottom: 6px;">
+                            <span>Subtotal</span>
                             <span id="subVal">₹0</span>
                         </div>
-                        <div class="flex-between" style="font-size: 12px; color: var(--muted); margin-bottom: 6px;">
-                            <span>Discount Flat (₹):</span>
-                            <input type="number" id="discVal" value="0" min="0" oninput="calcTotals()" style="width: 70px; text-align: right; padding: 4px;">
+                        <div class="flex-between muted" style="margin-bottom: 6px;">
+                            <span>Discount (₹)</span>
+                            <input type="number" id="discVal" value="0" min="0" oninput="calcTotals()" style="width: 90px; text-align: right; padding: .35rem .5rem;">
                         </div>
-                        <div class="flex-between" style="font-size: 15px; font-weight: bold; border-top: 1px dashed var(--border); padding-top: 6px;">
-                            <span>Total Payable:</span>
+                        <div class="flex-between" style="font-size: 1.2rem; font-weight: 700; border-top: 1px dashed var(--border); padding-top: 8px;">
+                            <span>Total</span>
                             <span id="totalVal" style="color: var(--accent);">₹0</span>
                         </div>
-
+                    </div>
+                    <div>
                         <div class="pay-modes" role="radiogroup" aria-label="Payment">
                             <button type="button" class="pay-mode active" data-mode="Cash" onclick="setPayMode('Cash')">💵 Cash</button>
                             <button type="button" class="pay-mode" data-mode="UPI" onclick="setPayMode('UPI')">📱 UPI</button>
@@ -361,12 +373,21 @@
                             <input type="number" id="cashGiven" min="0" step="1" placeholder="₹" oninput="calcChange()">
                         </div>
                         <div id="cashChange" class="muted" style="text-align:right; margin: -4px 0 8px;"></div>
-
-                        <button type="button" class="btn btn-emerald" style="width: 100%; padding: 10px;" onclick="checkout()" id="checkoutBtn">
-                            Complete Sale & Print Slip
-                        </button>
+                        <div class="row-actions">
+                            <button type="button" class="btn btn-emerald" style="width: 100%; padding: 12px;" onclick="checkout()" id="checkoutBtn">
+                                Complete Sale & Print Slip
+                            </button>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="card">
+                <div class="flex-between" style="margin-bottom: .25rem;">
+                    <h3 class="step">Recent bills</h3>
+                    <a href="javascript:void(0)" onclick="openView('history')" style="font-size: .85rem;">All sales</a>
+                </div>
+                <ul class="list" id="recentBills"></ul>
             </div>
         </section>
 
@@ -821,7 +842,6 @@
             const { data, error } = await db.from('customer_balances').select('*').order('last_visit', { ascending: false, nullsFirst: false });
             if (error) { fail(error, 'Loading customers'); return; }
             customers = data.map(c => ({ ...c, due: Number(c.udhaar_given) - Number(c.udhaar_paid) }));
-            document.getElementById('custPhoneList').innerHTML = customers.map(c => `<option value="${esc(c.phone)}">${esc(c.name)}</option>`).join('');
         }
 
         async function loadPurchases() {
@@ -881,7 +901,7 @@
         let activeView = 'dash';
         function refreshActiveView() {
             if (activeView === 'dash') renderDashboard();
-            if (activeView === 'pos') renderCatalog();
+            if (activeView === 'pos') { renderCatalog(); renderRecentBills(); }
             if (activeView === 'inventory') renderInventory();
             if (activeView === 'purchases') renderPurchases();
             if (activeView === 'customers') renderCustomers();
@@ -1033,6 +1053,35 @@
             hint.innerHTML = `Returning customer · ${c.bills} bill(s)` + (c.due > 0 ? ` · <b style="color:var(--bad);">Udhaar due ${inr(c.due)}</b> <a href="javascript:void(0)" onclick="settleDues(${c.id})">Receive dues</a>` : '');
         }
 
+        // Matching saved customers as you type, like MedStock's patient search
+        function renderCustPick() {
+            const box = document.getElementById('custPick');
+            const phone = document.getElementById('custPhone').value.replace(/[^0-9]/g, '');
+            const name = document.getElementById('custName').value.trim().toLowerCase();
+            const exact = phone.length >= 10 && customers.some(c => c.phone === phone.slice(-10));
+            if (exact || (phone.length < 3 && name.length < 2)) { box.innerHTML = ''; return; }
+            const hits = customers.filter(c => (phone.length >= 3 && (c.phone || '').includes(phone)) ||
+                (name.length >= 2 && (c.name || '').toLowerCase().includes(name))).slice(0, 6);
+            box.innerHTML = hits.map(c => `<li onclick="pickCustomer(${c.id})"><b>${esc(c.name)}</b><span>${esc(c.phone || '')}${c.due > 0 ? ` · udhaar ${inr(c.due)}` : ''}</span></li>`).join('');
+        }
+
+        function pickCustomer(id) {
+            const c = customers.find(x => x.id === id);
+            if (!c) return;
+            document.getElementById('custPhone').value = c.phone || '';
+            document.getElementById('custName').value = c.name;
+            fillCustomerFromPhone();
+            renderCustPick();
+        }
+
+        function renderRecentBills() {
+            const box = document.getElementById('recentBills');
+            if (!box) return;
+            box.innerHTML = sales.length === 0 ? '<li class="muted">No bills yet</li>' : sales.slice(0, 8).map(s => `
+                <li><b>${esc(s.bill_no)} · ${esc(s.customer)} · ${inr(s.total)}</b>
+                <span>${when(s.created_at)} · ${esc(payLabel(s))}<br>${esc(s.items.map(i => `${i.name} (${i.size}) x${i.qty}`).join(', '))}</span></li>`).join('');
+        }
+
         async function settleDues(id) {
             await openView('customers');
             openCustomer(id);
@@ -1075,7 +1124,7 @@
             list.innerHTML = '';
 
             if (cart.length === 0) {
-                list.innerHTML = '<p style="text-align: center; color: var(--muted); padding: 30px 0;">Cart is empty</p>';
+                list.innerHTML = '<p style="text-align: center; color: var(--muted); padding: 16px 0;">No items yet. Tap an item above or scan a tag.</p>';
                 calcTotals();
                 return;
             }
@@ -1221,11 +1270,13 @@
             clearCart();
             ['custName', 'custPhone'].forEach(id => document.getElementById(id).value = '');
             document.getElementById('custHint').innerText = '';
+            document.getElementById('custPick').innerHTML = '';
             document.getElementById('discVal').value = 0;
             ['splitCash', 'splitUpi', 'cashGiven'].forEach(id => document.getElementById(id).value = '');
             setPayMode('Cash');
             await Promise.all([loadInventory(), loadSales()]);
             renderCatalog();
+            renderRecentBills();
             toast(`Bill ${printed.bill_no} saved`);
         }
 
