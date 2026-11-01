@@ -9,7 +9,9 @@ Online version of the store's offline Garment POS. A single page (`public/index.
 - **Supplier purchase bills**: enter lines (or a size set like M, L, XL), attach a bill photo, then "Add to stock". Matching items get stock added; new ones are created
 - **Customers & udhaar**: customers are saved from the mobile number at billing; see bills, receive udhaar payments, send WhatsApp reminders
 - **Stock log**: append-only record of every sale, purchase and manual change, with who made it
-- **Dashboard**: today / 30-day sales, stock value, udhaar outstanding, low stock (at or below reorder level), slow-moving stock (no sale in 90 days), pieces by type
+- **Dashboard**: today / 30-day sales, expenses this month, udhaar outstanding, stock in hand, a 14-day sales vs expenses chart, payment mix, stock by type, expenses by category, low stock and slow-moving stock
+- **Expenses**: record shop spending (rent, electricity, salary, tea, transport...) with date, category, paid by (Cash / UPI / Bank) and a note; monthly totals, category breakdown and CSV export. Only owners can delete an entry
+- **Clothing templates**: ready-made presets (shirt, jeans, kurta, kurti, kids wear...) that fill type, category and the usual size set when adding stock or a supplier bill; one item per size is created
 - **Staff & roles**: only emails on the staff list can see data; owners can delete and manage staff
 - **Backup**: inventory and sales CSV, full JSON backup, CSV import
 - Live sync between open counters, phone layout with bottom tabs

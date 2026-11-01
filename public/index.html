@@ -4,115 +4,217 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Garment POS - Retail Inventory & Analytics Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
-        /* Look and feel matches MedStock: light surface, teal accent, sidebar on desktop, bottom tabs on phones */
+        /* Professional retail theme: navy sidebar, indigo accent, soft cards. Sidebar on desktop, bottom tabs on phones. */
         :root {
-            --bg: #f6f7f9; --surface: #ffffff; --text: #17202a; --muted: #64707d; --border: #e2e6ea;
-            --accent: #0f766e; --accent-ink: #ffffff; --warn: #b45309; --bad: #b91c1c; --ok: #15803d;
-            --radius: 10px;
+            --bg: #f3f5f9; --surface: #ffffff; --surface-2: #f8fafc; --text: #0f172a; --text-2: #334155; --muted: #64748b; --border: #e4e8ef;
+            --accent: #4f46e5; --accent-2: #6366f1; --accent-ink: #ffffff; --accent-soft: #eef2ff;
+            --warn: #b45309; --bad: #dc2626; --ok: #059669; --go: #059669; --go-ink: #ffffff;
+            --side-bg: #0f172a; --side-bg-2: #131c33; --side-text: #cbd5e1; --side-muted: #64748b; --side-active: #1e293b;
+            --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --grid: #e9edf3;
+            --radius: 14px; --radius-sm: 10px;
+            --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 1px 3px rgba(15, 23, 42, .06);
+            --shadow-lg: 0 10px 30px -12px rgba(15, 23, 42, .25);
+            --ease: cubic-bezier(.2, .7, .2, 1);
             color-scheme: light;
         }
         @media (prefers-color-scheme: dark) {
             :root {
-                --bg: #0f1418; --surface: #182026; --text: #e6eaee; --muted: #93a0ad; --border: #2a343c;
-                --accent: #2dd4bf; --accent-ink: #062a26; --warn: #f59e0b; --bad: #f87171; --ok: #4ade80;
+                --bg: #0b1120; --surface: #111a2e; --surface-2: #0f172a; --text: #e2e8f0; --text-2: #cbd5e1; --muted: #8b9ab0; --border: #1f2a40;
+                --accent: #818cf8; --accent-2: #a5b4fc; --accent-ink: #0b1120; --accent-soft: #1e2547;
+                --warn: #f59e0b; --bad: #f87171; --ok: #34d399; --go: #10b981; --go-ink: #04140e;
+                --side-bg: #070c18; --side-bg-2: #0a1122; --side-active: #16213a;
+                --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --grid: #1c2740;
+                --shadow: 0 1px 2px rgba(0, 0, 0, .3); --shadow-lg: 0 10px 30px -12px rgba(0, 0, 0, .6);
                 color-scheme: dark;
             }
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); }
-        body { background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
-        h1 { font-size: 1.5rem; margin: 0 0 1rem; }
-        h3 { font-size: 1.05rem; }
+        html { font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased; }
+        body { background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.45; }
+        h1 { font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; }
+        h3 { font-size: 1rem; font-weight: 650; letter-spacing: -.01em; }
         a { color: var(--accent); }
-        .soft-bad { background: color-mix(in srgb, var(--bad) 14%, transparent); }
-        .soft-ok { background: color-mix(in srgb, var(--ok) 14%, transparent); }
+        .soft-bad { background: color-mix(in srgb, var(--bad) 12%, transparent); }
+        .soft-ok { background: color-mix(in srgb, var(--ok) 12%, transparent); }
+        .ico { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
         /* Shell */
-        .shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
-        .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 1rem; display: flex; flex-direction: column; gap: .75rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-        .brand { font-weight: 800; font-size: 1.2rem; color: var(--accent); }
-        .store-name { font-size: .85rem; color: var(--muted); }
-        .nav-group { display: grid; gap: .25rem; }
-        .nav-btn { background: none; border: 0; padding: .55rem .7rem; border-radius: 8px; color: var(--text); font: inherit; text-align: left; cursor: pointer; display: flex; gap: .5rem; align-items: center; }
-        .nav-btn:hover { background: var(--bg); }
-        .nav-btn.active { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-weight: 600; }
-        .side-foot { margin-top: auto; display: grid; gap: .4rem; }
-        .user-chip { font-size: .8rem; color: var(--muted); word-break: break-all; }
+        .shell { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
+        .sidebar { background: linear-gradient(180deg, var(--side-bg), var(--side-bg-2)); color: var(--side-text); padding: 1.1rem .8rem; display: flex; flex-direction: column; gap: .9rem; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+        .brand { display: flex; align-items: center; gap: .6rem; padding: .2rem .45rem .6rem; }
+        .brand-mark { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: grid; place-items: center; color: #fff; box-shadow: 0 6px 16px -6px rgba(99, 102, 241, .8); }
+        .brand-mark .ico { width: 19px; height: 19px; }
+        .brand-name { font-weight: 750; font-size: 1.02rem; color: #fff; letter-spacing: -.01em; }
+        .store-name { font-size: .75rem; color: var(--side-muted); }
+        .nav-group { display: grid; gap: 2px; }
+        .nav-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--side-muted); padding: .8rem .7rem .3rem; font-weight: 600; }
+        .nav-btn { background: none; border: 0; padding: .55rem .7rem; border-radius: 9px; color: var(--side-text); font: inherit; font-size: .9rem; text-align: left; cursor: pointer; display: flex; gap: .65rem; align-items: center; transition: background .15s var(--ease), color .15s var(--ease); position: relative; }
+        .nav-btn .ico { opacity: .8; }
+        .nav-btn:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+        .nav-btn.active { background: var(--side-active); color: #fff; font-weight: 600; }
+        .nav-btn.active .ico { opacity: 1; color: #a5b4fc; }
+        .nav-btn.active::before { content: ""; position: absolute; left: -.8rem; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: #818cf8; }
+        .side-foot { margin-top: auto; display: grid; gap: .5rem; padding: .75rem .55rem 0; border-top: 1px solid rgba(255, 255, 255, .07); }
+        .user-row { display: flex; gap: .55rem; align-items: center; min-width: 0; }
+        .avatar { width: 32px; height: 32px; border-radius: 50%; background: #312e81; color: #c7d2fe; display: grid; place-items: center; font-weight: 700; font-size: .85rem; flex: 0 0 auto; text-transform: uppercase; }
+        .user-chip { font-size: .76rem; color: var(--side-text); word-break: break-all; line-height: 1.25; }
+        .user-role { font-size: .7rem; color: var(--side-muted); text-transform: capitalize; }
+        .side-foot .link-btn { color: var(--side-text); display: flex; align-items: center; gap: .5rem; font-size: .85rem; }
+        .side-foot .link-btn:hover { color: #fff; }
         .link-btn { background: none; border: 0; color: var(--accent); font: inherit; font-weight: 500; cursor: pointer; padding: .3rem 0; text-align: left; }
         .topbar { display: none; }
-        main.content { padding: 1.5rem; max-width: 1200px; width: 100%; min-width: 0; }
-        #pageTitle { margin-bottom: 1rem; }
+        main.content { padding: 1.6rem 2rem 2rem; max-width: 1280px; width: 100%; min-width: 0; margin: 0 auto; }
+        .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .page-sub { color: var(--muted); font-size: .85rem; margin-top: .15rem; }
+        .head-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 
         /* Phone: bottom tab bar */
         @media (max-width: 760px) {
             .shell { grid-template-columns: 1fr; }
-            .sidebar { position: fixed; bottom: 0; top: auto; left: 0; right: 0; height: auto; padding: .25rem; border-right: 0; border-top: 1px solid var(--border); z-index: 60; overflow: visible; }
-            .sidebar .brand, .sidebar .store-name, .side-foot { display: none; }
-            .nav-group { display: flex; overflow-x: auto; gap: 0; }
-            .nav-btn { flex: 0 0 auto; min-width: 64px; flex-direction: column; gap: 0; font-size: .7rem; padding: .4rem; text-align: center; white-space: nowrap; }
-            .nav-btn span:first-child { font-size: 1.2rem; }
-            .topbar { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .6rem 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; }
-            main.content { padding: 16px 16px 84px; }
+            .sidebar { position: fixed; bottom: 0; top: auto; left: 0; right: 0; height: auto; padding: .25rem; z-index: 60; overflow: visible; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -4px 18px -10px rgba(15, 23, 42, .25); }
+            .sidebar .brand, .sidebar .store-name, .side-foot, .nav-label { display: none; }
+            .nav-group { display: flex; overflow-x: auto; gap: 0; scrollbar-width: none; }
+            .nav-btn { flex: 0 0 auto; min-width: 66px; flex-direction: column; gap: 2px; font-size: .68rem; padding: .45rem .35rem; text-align: center; white-space: nowrap; color: var(--muted); }
+            .nav-btn:hover { background: none; color: var(--text); }
+            .nav-btn.active { background: none; color: var(--accent); }
+            .nav-btn.active .ico { color: var(--accent); }
+            .nav-btn.active::before { left: 25%; right: 25%; top: 0; bottom: auto; width: auto; height: 3px; border-radius: 0 0 3px 3px; background: var(--accent); }
+            .nav-btn .ico { width: 20px; height: 20px; }
+            .topbar { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .65rem 16px; background: var(--side-bg); color: #fff; position: sticky; top: 0; z-index: 50; }
+            .topbar .link-btn { color: #cbd5e1; }
+            main.content { padding: 16px 14px 92px; }
             .hide-sm { display: none; }
+            .page-head { align-items: flex-start; }
         }
 
         /* Layout & cards */
         .tab-panel { display: none; }
-        .tab-panel.active { display: block; }
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem; }
+        .tab-panel.active { display: block; animation: rise .28s var(--ease); }
+        @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.15rem 1.2rem; margin-bottom: 1rem; box-shadow: var(--shadow); }
+        .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: .9rem; }
+        .card-head p { color: var(--muted); font-size: .8rem; margin-top: 2px; }
         .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
         .muted { color: var(--muted); font-size: .85rem; }
         .center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 
-        .grid-5 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+        .grid-5 { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
         .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-2 > .card, .grid-dash > .card { margin-bottom: 0; }
+        .grid-dash { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+        .tab-panel > .grid-2 { margin-bottom: 1rem; }
         .grid-pos { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
+        @media (max-width: 1000px) { .grid-dash { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .grid-pos, .grid-2 { grid-template-columns: 1fr; } }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin-bottom: .75rem; }
-        @media (max-width: 760px) { .grid-5 { grid-template-columns: repeat(2, 1fr); } }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .8rem; margin-bottom: .9rem; }
+        @media (max-width: 760px) { .grid-5 { grid-template-columns: repeat(2, 1fr); gap: .65rem; } }
 
-        /* Tiles (dashboard numbers) */
-        .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; color: var(--muted); }
+        /* KPI tiles */
+        .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; color: var(--muted); box-shadow: var(--shadow); position: relative; transition: transform .18s var(--ease), box-shadow .18s var(--ease), border-color .18s; }
         .metric-card.clickable { cursor: pointer; }
-        .metric-card.clickable:hover { border-color: var(--accent); }
-        .metric-title { font-size: .85rem; margin-bottom: .2rem; }
-        .metric-value { font-size: 1.8rem; font-weight: 700; color: var(--text); line-height: 1.2; overflow-wrap: anywhere; }
+        .metric-card.clickable:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+        .metric-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: .55rem; }
+        .metric-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+        .metric-icon.i-blue { background: color-mix(in srgb, var(--series-1) 13%, transparent); color: var(--series-1); }
+        .metric-icon.i-green { background: color-mix(in srgb, var(--ok) 13%, transparent); color: var(--ok); }
+        .metric-icon.i-orange { background: color-mix(in srgb, var(--series-2) 13%, transparent); color: var(--series-2); }
+        .metric-icon.i-red { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
+        .metric-title { font-size: .8rem; font-weight: 550; color: var(--muted); }
+        .metric-value { font-size: 1.6rem; font-weight: 750; color: var(--text); line-height: 1.15; letter-spacing: -.02em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
         .metric-card.red .metric-value { color: var(--bad); }
         .metric-card.amber .metric-value { color: var(--warn); }
-        .metric-sub { font-size: .8rem; color: var(--muted); margin-top: .2rem; }
-        .type-tile { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: .9rem; }
+        .metric-sub { font-size: .76rem; color: var(--muted); margin-top: .3rem; }
+        .type-tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .9rem; }
+
+        /* Charts */
+        .chart { position: relative; width: 100%; }
+        .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+        .chart .gridline { stroke: var(--grid); stroke-width: 1; }
+        .chart .axis-label { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+        .chart .hit { fill: transparent; cursor: default; }
+        .chart .hit:hover { fill: color-mix(in srgb, var(--text) 5%, transparent); }
+        .s1 { fill: var(--series-1); } .s2 { fill: var(--series-2); } .s3 { fill: var(--series-3); }
+        .legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .8rem; color: var(--text-2); }
+        .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+        .legend .sw1 { background: var(--series-1); } .legend .sw2 { background: var(--series-2); } .legend .sw3 { background: var(--series-3); }
+        .chart-tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); border-radius: 10px; padding: .5rem .65rem; font-size: .8rem; color: var(--text); white-space: nowrap; opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; z-index: 5; }
+        .chart-tip.show { opacity: 1; transform: none; }
+        .chart-tip b { display: block; margin-bottom: 2px; }
+        .chart-tip .row { display: flex; justify-content: space-between; gap: 14px; color: var(--text-2); }
+        .chart-tip .row i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+        .hbars { display: grid; gap: .6rem; }
+        .hbar { display: grid; grid-template-columns: minmax(80px, 28%) 1fr 8.5rem; gap: .65rem; align-items: center; font-size: .83rem; }
+        .hbar .name { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hbar .track { height: 10px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
+        .hbar .fill { height: 100%; border-radius: 99px; background: var(--series-1); transition: width .5s var(--ease); }
+        .hbar .fill.f2 { background: var(--series-2); }
+        .hbar .val { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; text-align: right; white-space: nowrap; }
+        .hbar .val small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+        .stackbar { display: flex; height: 16px; border-radius: 6px; overflow: hidden; gap: 2px; margin: .4rem 0 1rem; background: var(--surface-2); }
+        .stackbar div { height: 100%; transition: width .5s var(--ease); }
+        .mix-list { display: grid; gap: .55rem; }
+        .mix-list .row { display: flex; justify-content: space-between; font-size: .85rem; color: var(--text-2); }
+        .mix-list .row b { color: var(--text); font-variant-numeric: tabular-nums; }
+        .big-number { font-size: 1.7rem; font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+        .empty { color: var(--muted); font-size: .85rem; padding: 1rem 0; text-align: center; }
 
         /* Lists */
         .list { list-style: none; max-height: 320px; overflow-y: auto; }
-        .list li { display: flex; justify-content: space-between; gap: 8px; padding: .6rem 0; border-bottom: 1px solid var(--border); font-size: .9rem; }
-        .list li span { color: var(--muted); text-align: right; font-size: .85rem; }
+        .list li { display: flex; justify-content: space-between; gap: 8px; padding: .62rem .1rem; border-bottom: 1px solid var(--border); font-size: .88rem; }
+        .list li:last-child { border-bottom: 0; }
+        .list li span { color: var(--muted); text-align: right; font-size: .82rem; }
 
         /* Forms and buttons */
-        label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .3rem; }
-        input, select { width: 100%; padding: .55rem .65rem; border: 1px solid var(--border); border-radius: 8px; font: inherit; background: var(--surface); color: var(--text); outline: none; }
+        label { display: block; font-size: .8rem; font-weight: 550; color: var(--text-2); margin-bottom: .35rem; }
+        input, select, textarea { width: 100%; padding: .58rem .7rem; border: 1px solid var(--border); border-radius: 9px; font: inherit; background: var(--surface); color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s; }
         input[type=checkbox], input[type=radio] { width: auto; accent-color: var(--accent); }
-        input:focus, select:focus { border-color: var(--accent); }
-        .btn { padding: .6rem 1rem; border: 0; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+        .btn { padding: .6rem 1.05rem; border: 1px solid transparent; border-radius: 9px; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: .45rem; transition: background .15s, filter .15s, transform .08s, box-shadow .15s, border-color .15s; }
+        .btn:active { transform: scale(.98); }
         .btn:disabled { opacity: .5; cursor: wait; }
-        .btn-indigo, .btn-emerald { background: var(--accent); color: var(--accent-ink); }
-        .btn-indigo:hover, .btn-emerald:hover { filter: brightness(1.08); }
-        .btn-light { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-        .btn-danger { background: transparent; color: var(--bad); border: 1px solid var(--bad); }
-        .btn-sm { padding: .3rem .6rem; font-size: .8rem; }
+        .btn:focus-visible, .nav-btn:focus-visible, .pay-mode:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .btn-indigo { background: var(--accent); color: var(--accent-ink); box-shadow: 0 4px 12px -6px color-mix(in srgb, var(--accent) 80%, transparent); }
+        .btn-emerald { background: var(--go); color: var(--go-ink); box-shadow: 0 4px 12px -6px color-mix(in srgb, var(--go) 80%, transparent); }
+        .btn-indigo:hover, .btn-emerald:hover { filter: brightness(1.07); }
+        .btn-light { background: var(--surface); color: var(--text-2); border-color: var(--border); }
+        .btn-light:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent); }
+        .btn-danger { background: transparent; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+        .btn-danger:hover { background: color-mix(in srgb, var(--bad) 8%, transparent); }
+        .btn-sm { padding: .32rem .62rem; font-size: .8rem; border-radius: 8px; }
+        .btn .ico { width: 16px; height: 16px; }
+
+        /* Chips (templates, expense categories) */
+        .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+        .chip { border: 1px solid var(--border); background: var(--surface); color: var(--text-2); border-radius: 99px; padding: .32rem .75rem; font: inherit; font-size: .8rem; cursor: pointer; transition: all .15s var(--ease); }
+        .chip:hover { border-color: var(--accent); color: var(--accent); }
+        .chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+        .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: .55rem; margin-bottom: 1rem; }
+        .tpl { text-align: left; border: 1px solid var(--border); background: var(--surface-2); border-radius: 11px; padding: .6rem .7rem; cursor: pointer; font: inherit; color: var(--text); display: flex; gap: .55rem; align-items: center; transition: all .15s var(--ease); }
+        .tpl:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); transform: translateY(-1px); box-shadow: var(--shadow); }
+        .tpl.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+        .tpl .tpl-ico { width: 32px; height: 32px; border-radius: 9px; background: var(--surface); border: 1px solid var(--border); display: grid; place-items: center; color: var(--accent); flex: 0 0 auto; }
+        .tpl b { display: block; font-size: .85rem; font-weight: 600; }
+        .tpl small { color: var(--muted); font-size: .72rem; }
+        .size-pick { margin: -.2rem 0 .9rem; display: none; }
+        .size-pick.show { display: block; }
+        .tpl-tag { font-size: .72rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: .15rem .55rem; border-radius: 99px; }
 
         /* POS catalog */
         .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; max-height: 480px; overflow-y: auto; margin-top: .75rem; }
-        .catalog-item { border: 1px solid var(--border); border-radius: 8px; padding: .65rem; cursor: pointer; background: var(--surface); font-size: .85rem; }
-        .catalog-item:hover { border-color: var(--accent); }
+        .catalog-item { border: 1px solid var(--border); border-radius: 10px; padding: .65rem; cursor: pointer; background: var(--surface); font-size: .85rem; transition: all .15s var(--ease); }
+        .catalog-item:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow); }
         .pay-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
-        .pay-mode { padding: .5rem .25rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: .85rem; cursor: pointer; white-space: nowrap; }
-        .pay-mode.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-weight: 700; }
-        .split-box { border: 1px solid var(--border); border-radius: 8px; padding: .6rem; margin-bottom: 10px; display: grid; gap: 6px; background: var(--bg); }
+        .pay-mode { padding: .55rem .25rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; font-size: .85rem; cursor: pointer; white-space: nowrap; transition: all .15s var(--ease); }
+        .pay-mode:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+        .pay-mode.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+        .split-box { border: 1px solid var(--border); border-radius: 10px; padding: .6rem; margin-bottom: 10px; display: grid; gap: 6px; background: var(--surface-2); }
         .split-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .9rem; }
         .split-row input { width: 110px; text-align: right; padding: .35rem .5rem; }
         .split-quick { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -124,30 +226,35 @@
         .row-actions { margin-top: .75rem; }
 
         /* Tables */
-        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-        table { width: 100%; border-collapse: collapse; font-size: .9rem; text-align: left; }
-        th { padding: .6rem .75rem; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; font-size: .8rem; }
-        td { padding: .6rem .75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-        tbody tr:hover { background: var(--bg); }
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+        table { width: 100%; border-collapse: collapse; font-size: .88rem; text-align: left; }
+        th { padding: .65rem .8rem; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; background: var(--surface-2); white-space: nowrap; }
+        td { padding: .62rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        tbody tr:last-child td { border-bottom: 0; }
+        tbody tr { transition: background .12s; }
+        tbody tr:hover { background: var(--surface-2); }
+        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         .price-input { width: 90px; padding: .3rem .45rem; font-weight: 700; }
         .small-input { width: 64px; padding: .3rem .45rem; }
         .note-flag { display: inline-block; margin-top: 3px; font-size: .72rem; color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); padding: 1px 6px; border-radius: 99px; }
-        .pill { display: inline-block; font-size: .75rem; padding: .1rem .5rem; border-radius: 99px; background: var(--bg); border: 1px solid var(--border); color: var(--muted); }
+        .pill { display: inline-block; font-size: .72rem; font-weight: 600; padding: .12rem .55rem; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
         .pill.draft { color: var(--warn); }
         .pill.committed { color: var(--ok); }
         .plus { color: var(--ok); font-weight: 700; }
         .minus { color: var(--bad); font-weight: 700; }
 
         /* Login, toast, badges */
-        .auth { width: min(380px, 100%); display: grid; gap: .9rem; margin: 0; }
+        .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 16px; background: radial-gradient(1200px 600px at 10% -10%, #312e81 0%, transparent 60%), radial-gradient(900px 500px at 110% 110%, #1e3a8a 0%, transparent 55%), #0b1120; }
+        .auth { width: min(400px, 100%); display: grid; gap: .9rem; margin: 0; padding: 1.8rem; box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .5); }
         .auth label { margin: 0; display: grid; gap: .3rem; }
-        #toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: .6rem 1rem; border-radius: 8px; font-size: .85rem; display: none; z-index: 100; max-width: calc(100% - 32px); }
-        .sync { font-size: .75rem; padding: .1rem .5rem; border-radius: 99px; border: 1px solid var(--border); color: var(--ok); }
-        .sync.off { color: var(--bad); }
+        .auth .brand-name { color: var(--text); font-size: 1.25rem; }
+        #toast { position: fixed; bottom: 96px; left: 50%; transform: translate(-50%, 10px); background: #0f172a; color: #f8fafc; padding: .65rem 1.05rem; border-radius: 10px; font-size: .85rem; z-index: 100; max-width: calc(100% - 32px); box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: opacity .2s var(--ease), transform .2s var(--ease); }
+        #toast.show { opacity: 1; transform: translate(-50%, 0); }
+        .sync { font-size: .72rem; padding: .15rem .55rem; border-radius: 99px; color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); font-weight: 600; justify-self: start; }
+        .sync.off { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
         .owner-only { display: none !important; }
         body.is-owner .owner-only { display: revert !important; }
         body.is-owner .nav-btn.owner-only { display: flex !important; }
-
         /* Camera scanner */
         .cam-btn { white-space: nowrap; flex: 0 0 auto; }
         #scanModal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 200; padding: 16px; }
@@ -189,15 +296,45 @@
 </head>
 <body>
 
+    <!-- Line icons (Lucide-style), used through <svg class="ico"><use href="#i-name"/></svg> -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <defs>
+            <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+            <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+            <symbol id="i-box" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></symbol>
+            <symbol id="i-truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></symbol>
+            <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+            <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+            <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></symbol>
+            <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+            <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+            <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+            <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+            <symbol id="i-shirt" viewBox="0 0 24 24"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></symbol>
+            <symbol id="i-pants" viewBox="0 0 24 24"><path d="M6 2h12l1 20h-5l-2-12-2 12H5z"/><path d="M6 6h12"/></symbol>
+            <symbol id="i-jacket" viewBox="0 0 24 24"><path d="M8 2 4 4 2 10l3 1v11h14V11l3-1-2-6-4-2"/><path d="M8 2l4 5 4-5"/><path d="M12 7v15"/></symbol>
+            <symbol id="i-kurta" viewBox="0 0 24 24"><path d="M9 2h6l1 2 4 2-1 6h-2v10H7V12H5L4 6l4-2z"/><path d="M12 4v6"/></symbol>
+            <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/></symbol>
+            <symbol id="i-rupee" viewBox="0 0 24 24"><path d="M6 3h12"/><path d="M6 8h12"/><path d="m6 13 8.5 8"/><path d="M6 13h3"/><path d="M9 13c6.67 0 6.67-10 0-10"/></symbol>
+            <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></symbol>
+            <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+            <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+            <symbol id="i-bag" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
+        </defs>
+    </svg>
+
     <!-- ================= LOGIN ================= -->
-    <div class="center" id="loginScreen" style="display:none;">
+    <div class="login-wrap" id="loginScreen" style="display:none;">
         <form class="card auth" onsubmit="signIn(event)">
-            <h1 style="margin:0; color: var(--accent);">Garment POS</h1>
-            <p class="muted">Clothing store billing and stock. Only staff added by the owner can sign in.</p>
+            <div class="brand" style="padding:0;">
+                <div class="brand-mark"><svg class="ico"><use href="#i-bag"/></svg></div>
+                <div><div class="brand-name">Garment POS</div><div class="muted" style="font-size:.78rem;">Retail billing &amp; inventory</div></div>
+            </div>
+            <p class="muted">Sign in to your store. Only staff added by the owner can sign in.</p>
             <label>Email<input type="email" id="loginEmail" required autocomplete="username"></label>
             <label>Password<input type="password" id="loginPass" required autocomplete="current-password" minlength="6"></label>
             <p id="loginMsg" class="muted" style="color: var(--bad);"></p>
-            <button type="submit" class="btn btn-indigo" id="loginBtn">Sign in</button>
+            <button type="submit" class="btn btn-indigo" id="loginBtn" style="padding:.75rem;">Sign in</button>
             <p class="muted" style="text-align:center;">
                 New here? <a href="javascript:void(0)" onclick="signUp()">Create account</a> ·
                 <a href="javascript:void(0)" onclick="resetPassword()">Forgot password</a>
@@ -207,98 +344,136 @@
 
     <div class="shell" id="appShell" style="display:none;">
         <aside class="sidebar">
-            <div class="brand">Garment POS</div>
-            <div class="store-name">Clothing store</div>
+            <div class="brand">
+                <div class="brand-mark"><svg class="ico"><use href="#i-bag"/></svg></div>
+                <div><div class="brand-name">Garment POS</div><div class="store-name">Clothing store</div></div>
+            </div>
             <nav class="nav-group" id="mainNav">
-                <button type="button" class="nav-btn active" id="btn-dash" onclick="openView('dash')"><span aria-hidden="true">📊</span><span>Dashboard</span></button>
-                <button type="button" class="nav-btn" id="btn-pos" onclick="openView('pos')"><span aria-hidden="true">🛒</span><span>POS Billing</span></button>
-                <button type="button" class="nav-btn" id="btn-inventory" onclick="openView('inventory')"><span aria-hidden="true">📦</span><span>Stock</span></button>
-                <button type="button" class="nav-btn" id="btn-purchases" onclick="openView('purchases')"><span aria-hidden="true">🧾</span><span>Purchases</span></button>
-                <button type="button" class="nav-btn" id="btn-customers" onclick="openView('customers')"><span aria-hidden="true">👥</span><span>Customers</span></button>
-                <button type="button" class="nav-btn" id="btn-history" onclick="openView('history')"><span aria-hidden="true">📜</span><span>Sales</span></button>
-                <button type="button" class="nav-btn" id="btn-movements" onclick="openView('movements')"><span aria-hidden="true">🔁</span><span>Stock Log</span></button>
-                <button type="button" class="nav-btn" id="btn-backup" onclick="openView('backup')"><span aria-hidden="true">💾</span><span>Backup</span></button>
-                <button type="button" class="nav-btn owner-only" id="btn-staff" onclick="openView('staff')"><span aria-hidden="true">🔐</span><span>Staff</span></button>
+                <div class="nav-label">Overview</div>
+                <button type="button" class="nav-btn active" id="btn-dash" onclick="openView('dash')"><svg class="ico"><use href="#i-dash"/></svg><span>Dashboard</span></button>
+                <div class="nav-label">Sell</div>
+                <button type="button" class="nav-btn" id="btn-pos" onclick="openView('pos')"><svg class="ico"><use href="#i-cart"/></svg><span>POS Billing</span></button>
+                <button type="button" class="nav-btn" id="btn-history" onclick="openView('history')"><svg class="ico"><use href="#i-receipt"/></svg><span>Sales</span></button>
+                <button type="button" class="nav-btn" id="btn-customers" onclick="openView('customers')"><svg class="ico"><use href="#i-users"/></svg><span>Customers</span></button>
+                <div class="nav-label">Stock</div>
+                <button type="button" class="nav-btn" id="btn-inventory" onclick="openView('inventory')"><svg class="ico"><use href="#i-box"/></svg><span>Stock</span></button>
+                <button type="button" class="nav-btn" id="btn-purchases" onclick="openView('purchases')"><svg class="ico"><use href="#i-truck"/></svg><span>Purchases</span></button>
+                <button type="button" class="nav-btn" id="btn-movements" onclick="openView('movements')"><svg class="ico"><use href="#i-history"/></svg><span>Stock Log</span></button>
+                <div class="nav-label">Money</div>
+                <button type="button" class="nav-btn" id="btn-expenses" onclick="openView('expenses')"><svg class="ico"><use href="#i-wallet"/></svg><span>Expenses</span></button>
+                <div class="nav-label">Settings</div>
+                <button type="button" class="nav-btn" id="btn-backup" onclick="openView('backup')"><svg class="ico"><use href="#i-db"/></svg><span>Backup</span></button>
+                <button type="button" class="nav-btn owner-only" id="btn-staff" onclick="openView('staff')"><svg class="ico"><use href="#i-shield"/></svg><span>Staff</span></button>
             </nav>
             <div class="side-foot">
                 <span class="sync" id="syncBadge">● Online</span>
-                <span class="user-chip" id="userEmail"></span>
-                <button type="button" class="link-btn" onclick="signOut()">Sign out</button>
+                <div class="user-row">
+                    <div class="avatar" id="userAvatar">?</div>
+                    <div style="min-width:0;"><div class="user-chip" id="userEmail"></div><div class="user-role" id="userRole"></div></div>
+                </div>
+                <button type="button" class="link-btn" onclick="signOut()"><svg class="ico"><use href="#i-logout"/></svg>Sign out</button>
             </div>
         </aside>
         <div style="min-width:0;">
         <div class="topbar">
-            <strong style="color: var(--accent);">Garment POS</strong>
+            <span style="display:flex; gap:.5rem; align-items:center;"><span class="brand-mark" style="width:28px;height:28px;border-radius:8px;"><svg class="ico" style="width:16px;height:16px;"><use href="#i-bag"/></svg></span><strong>Garment POS</strong></span>
             <span style="display:flex; gap:.5rem; align-items:center;"><span class="sync" id="syncBadgeSm">● Online</span><button type="button" class="link-btn" onclick="signOut()">Sign out</button></span>
         </div>
     <main id="appMain" class="content">
-        <h1 id="pageTitle">Dashboard</h1>
+        <div class="page-head">
+            <div>
+                <h1 id="pageTitle">Dashboard</h1>
+                <div class="page-sub" id="pageSub"></div>
+            </div>
+            <div class="head-actions" id="dashActions">
+                <button type="button" class="btn btn-light" onclick="openView('expenses')"><svg class="ico"><use href="#i-wallet"/></svg>Add expense</button>
+                <button type="button" class="btn btn-light hide-sm" onclick="openView('purchases')"><svg class="ico"><use href="#i-truck"/></svg>Supplier bill</button>
+                <button type="button" class="btn btn-indigo" onclick="openView('pos')"><svg class="ico"><use href="#i-cart"/></svg>New sale</button>
+            </div>
+        </div>
 
         <!-- ================= 1. EXECUTIVE DASHBOARD ================= -->
         <section id="view-dash" class="tab-panel active">
             <div class="grid-5">
-                <div class="metric-card purple">
-                    <div class="metric-title">Total Quantity Available</div>
-                    <div class="metric-value" id="dashTotalPieces">0 Pcs</div>
-                    <div class="metric-sub" id="dashTotalStyles">Across 0 Garment Styles</div>
-                </div>
-                <div class="metric-card blue">
-                    <div class="metric-title">Sales of the Day (Today)</div>
+                <div class="metric-card clickable" onclick="openView('history')">
+                    <div class="metric-top"><span class="metric-title">Today's sales</span><span class="metric-icon i-blue"><svg class="ico"><use href="#i-rupee"/></svg></span></div>
                     <div class="metric-value" id="dashTodaySales">₹0</div>
-                    <div class="metric-sub" id="dashTodayBills">0 Invoices Generated</div>
+                    <div class="metric-sub" id="dashTodayBills">0 bills</div>
                 </div>
-                <div class="metric-card green">
-                    <div class="metric-title">Sales in Last 30 Days</div>
+                <div class="metric-card clickable" onclick="openView('history')">
+                    <div class="metric-top"><span class="metric-title">Sales, last 30 days</span><span class="metric-icon i-green"><svg class="ico"><use href="#i-trend"/></svg></span></div>
                     <div class="metric-value" id="dashMonthSales">₹0</div>
-                    <div class="metric-sub" id="dashMonthBills">0 Completed Transactions</div>
+                    <div class="metric-sub" id="dashMonthBills">0 bills</div>
                 </div>
-                <div class="metric-card">
-                    <div class="metric-title">Total Stock Value (Selling Price)</div>
-                    <div class="metric-value" id="dashRetailValuation">₹0</div>
-                    <div class="metric-sub">Selling value of in-store stock</div>
+                <div class="metric-card clickable" onclick="openView('expenses')">
+                    <div class="metric-top"><span class="metric-title">Expenses this month</span><span class="metric-icon i-orange"><svg class="ico"><use href="#i-wallet"/></svg></span></div>
+                    <div class="metric-value" id="dashExpMonth">₹0</div>
+                    <div class="metric-sub" id="dashExpSub">0 entries</div>
                 </div>
                 <div class="metric-card red clickable" onclick="openView('customers')">
-                    <div class="metric-title">Udhaar Outstanding</div>
+                    <div class="metric-top"><span class="metric-title">Udhaar outstanding</span><span class="metric-icon i-red"><svg class="ico"><use href="#i-book"/></svg></span></div>
                     <div class="metric-value" id="dashUdhaar">₹0</div>
                     <div class="metric-sub" id="dashUdhaarSub">0 customers owe money</div>
                 </div>
+                <div class="metric-card clickable" onclick="openView('inventory')">
+                    <div class="metric-top"><span class="metric-title">Stock in hand</span><span class="metric-icon"><svg class="ico"><use href="#i-box"/></svg></span></div>
+                    <div class="metric-value" id="dashTotalPieces">0 pcs</div>
+                    <div class="metric-sub"><span id="dashRetailValuation">₹0</span> selling value · <span id="dashTotalStyles">0 styles</span></div>
+                </div>
             </div>
 
-            <div class="grid-2">
+            <div class="grid-dash">
                 <section class="card">
-                    <div class="flex-between" style="margin-bottom: 8px;">
-                        <h3>Low stock <span class="pill" id="lowCount">0</span></h3>
-                        <span class="muted">At or below reorder level</span>
+                    <div class="card-head">
+                        <div><h3>Sales and expenses</h3><p>Daily totals for the last 14 days</p></div>
+                        <div class="legend"><span><i class="sw1"></i>Sales</span><span><i class="sw2"></i>Expenses</span></div>
+                    </div>
+                    <div class="chart" id="trendChart"></div>
+                </section>
+                <section class="card">
+                    <div class="card-head"><div><h3>How customers paid</h3><p>Last 30 days</p></div></div>
+                    <div class="big-number" id="mixTotal">₹0</div>
+                    <div class="stackbar" id="mixBar"></div>
+                    <div class="mix-list" id="mixList"></div>
+                </section>
+            </div>
+
+            <div class="grid-2 spaced">
+                <section class="card">
+                    <div class="card-head">
+                        <div><h3>Stock by garment type</h3><p>Pieces in stock and their selling value</p></div>
+                        <span class="tpl-tag" id="dashTotalBadge">0 pcs</span>
+                    </div>
+                    <div class="hbars" id="typeCards"></div>
+                </section>
+                <section class="card">
+                    <div class="card-head">
+                        <div><h3>Expenses by category</h3><p id="expCatSub">This month</p></div>
+                        <a href="javascript:void(0)" onclick="openView('expenses')" style="font-size:.82rem;">All expenses</a>
+                    </div>
+                    <div class="hbars" id="expCatBars"></div>
+                </section>
+            </div>
+
+            <div class="grid-2 spaced">
+                <section class="card">
+                    <div class="card-head">
+                        <div><h3>Low stock <span class="pill" id="lowCount">0</span></h3><p>At or below reorder level</p></div>
                     </div>
                     <ul class="list" id="lowList"></ul>
                 </section>
                 <section class="card">
-                    <div class="flex-between" style="margin-bottom: 8px;">
-                        <h3>Slow-moving stock <span class="pill" id="slowCount">0</span></h3>
-                        <span class="muted">No sale in 90+ days</span>
+                    <div class="card-head">
+                        <div><h3>Slow-moving stock <span class="pill" id="slowCount">0</span></h3><p>No sale in 90+ days</p></div>
                     </div>
                     <ul class="list" id="slowList"></ul>
                 </section>
             </div>
 
-            <div class="card">
-                <div class="flex-between" style="margin-bottom: 14px;">
-                    <div>
-                        <h3 style="font-weight: 700;">Apparel Category Piece Counting & Valuations</h3>
-                        <p style="font-size: 11px; color: var(--muted); margin-top: 2px;">Real-time stock quantity counts and selling value by garment type</p>
-                    </div>
-                    <span style="font-size: 11px; font-weight: bold; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); padding: 4px 10px; border-radius: 20px;" id="dashTotalBadge">0 Total Pieces In Stock</span>
-                </div>
-                <div class="grid-4" id="typeCards"></div>
-            </div>
-
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button type="button" class="btn btn-indigo" onclick="openView('pos')">Open POS Billing Counter</button>
-                <button type="button" class="btn btn-emerald" onclick="openView('purchases')">Enter Supplier Bill</button>
-                <button type="button" class="btn btn-light" onclick="exportInventoryCSV()">Download Stock Report (CSV)</button>
+                <button type="button" class="btn btn-light" onclick="exportInventoryCSV()"><svg class="ico"><use href="#i-download"/></svg>Download stock report (CSV)</button>
             </div>
         </section>
-
         <!-- ================= 2. POS BILLING TAB ================= -->
         <section id="view-pos" class="tab-panel">
             <!-- Same counter flow as MedStock's OPD dispensing: 1. who, 2. what, 3. how they pay, then recent bills -->
@@ -394,8 +569,12 @@
         <!-- ================= 3. STOCK INVENTORY TAB ================= -->
         <section id="view-inventory" class="tab-panel">
             <div class="card">
-                <h3 style="margin-bottom: 12px;">Add Garment to Store Stock</h3>
-                <p class="muted" style="margin-bottom: 10px;">For new stock from a supplier, use <a href="javascript:void(0)" onclick="openView('purchases')">Purchases</a> so it's recorded against the bill.</p>
+                <div class="card-head">
+                    <div><h3>Add garment to stock</h3><p>For new stock from a supplier, use <a href="javascript:void(0)" onclick="openView('purchases')">Purchases</a> so it's recorded against the bill.</p></div>
+                    <span class="tpl-tag" id="tplActive" style="display:none;"></span>
+                </div>
+                <label>Start from a clothing template</label>
+                <div class="tpl-grid" id="tplGrid"></div>
                 <form onsubmit="saveGarment(event)">
                     <div class="form-grid">
                         <div>
@@ -415,8 +594,8 @@
                             </select>
                         </div>
                         <div>
-                            <label>Size</label>
-                            <input type="text" id="gSize" placeholder="M, L, XL, 32">
+                            <label>Size(s)</label>
+                            <input type="text" id="gSize" placeholder="M or M, L, XL" oninput="syncSizeChips()">
                         </div>
                         <div>
                             <label>Color</label>
@@ -427,7 +606,7 @@
                             <input type="number" id="gPrice" required min="1" placeholder="0">
                         </div>
                         <div>
-                            <label>Stock Quantity (Pcs) *</label>
+                            <label id="gStockLabel">Stock Quantity (Pcs) *</label>
                             <input type="number" id="gStock" required min="0" placeholder="10">
                         </div>
                         <div>
@@ -442,7 +621,11 @@
                             </div>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-indigo" style="width: 100%; padding: 10px;">Save Garment to Stock</button>
+                    <div class="size-pick" id="sizePick">
+                        <label>Sizes to add <span class="muted" style="font-weight:400;">(one stock item per size, each with its own barcode)</span></label>
+                        <div class="chips" id="sizeChips"></div>
+                    </div>
+                    <button type="submit" class="btn btn-indigo" style="width: 100%; padding: 11px;" id="gSaveBtn">Save garment to stock</button>
                 </form>
             </div>
 
@@ -547,6 +730,7 @@
                 <div style="display:flex; gap:8px; margin-top: 10px; flex-wrap: wrap;">
                     <button type="button" class="btn btn-light" onclick="addPurchaseLine()" id="pAddLine">+ Add line</button>
                     <button type="button" class="btn btn-light" onclick="addSizeRun()" id="pAddRun">+ Add size set (e.g. M, L, XL)</button>
+                    <select id="pAddTpl" onchange="addTemplateLines(this.value); this.value=''" style="width:auto;" title="Add one line per size from a clothing template"></select>
                 </div>
                 <div class="flex-between" style="margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;">
                     <strong id="pTotals">0 pieces</strong>
@@ -579,6 +763,77 @@
                 </div>
             </div>
             <div class="card" id="custDetail" style="display:none;"></div>
+        </section>
+
+        <!-- ================= EXPENSES ================= -->
+        <section id="view-expenses" class="tab-panel">
+            <div class="grid-5">
+                <div class="metric-card">
+                    <div class="metric-top"><span class="metric-title">Today</span><span class="metric-icon i-orange"><svg class="ico"><use href="#i-wallet"/></svg></span></div>
+                    <div class="metric-value" id="expToday">₹0</div>
+                    <div class="metric-sub" id="expTodaySub">0 entries</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-top"><span class="metric-title" id="expMonthTitle">This month</span><span class="metric-icon i-orange"><svg class="ico"><use href="#i-wallet"/></svg></span></div>
+                    <div class="metric-value" id="expMonthTotal">₹0</div>
+                    <div class="metric-sub" id="expMonthSub">0 entries</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-top"><span class="metric-title">Biggest head</span><span class="metric-icon"><svg class="ico"><use href="#i-dash"/></svg></span></div>
+                    <div class="metric-value" id="expTopCat" style="font-size:1.25rem;">—</div>
+                    <div class="metric-sub" id="expTopCatSub">&nbsp;</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-top"><span class="metric-title">Sales in the same month</span><span class="metric-icon i-blue"><svg class="ico"><use href="#i-rupee"/></svg></span></div>
+                    <div class="metric-value" id="expMonthSales">₹0</div>
+                    <div class="metric-sub" id="expMonthShare">&nbsp;</div>
+                </div>
+            </div>
+
+            <div class="grid-dash">
+                <div class="card">
+                    <div class="card-head">
+                        <div><h3>Expenses</h3><p>Newest first. Only an owner can delete an entry.</p></div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <input type="month" id="expMonth" onchange="renderExpenses()" style="width:auto;">
+                            <input type="text" id="expFilter" oninput="renderExpenses()" placeholder="Search category or note" style="width: 190px;">
+                            <button type="button" class="btn btn-light btn-sm" onclick="exportExpensesCSV()"><svg class="ico"><use href="#i-download"/></svg>CSV</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Date</th><th>Category</th><th class="hide-sm">Note</th><th>Paid by</th><th class="num">Amount</th><th class="hide-sm">Added by</th><th></th></tr></thead>
+                            <tbody id="expenseTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <form class="card" onsubmit="saveExpense(event)" id="expenseForm">
+                        <div class="card-head"><div><h3>Add an expense</h3><p>Rent, bills, salary, tea, transport and so on</p></div></div>
+                        <label>Category *</label>
+                        <div class="chips" id="expCatChips" style="margin-bottom:.6rem;"></div>
+                        <input type="text" id="eCat" required list="expCatList" placeholder="Pick above or type your own" style="margin-bottom:.8rem;">
+                        <datalist id="expCatList"></datalist>
+                        <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+                            <div><label>Amount (₹) *</label><input type="number" id="eAmount" required min="1" step="0.01" placeholder="0" inputmode="decimal"></div>
+                            <div><label>Date</label><input type="date" id="eDate" required></div>
+                        </div>
+                        <label>Paid by</label>
+                        <div class="pay-modes" style="grid-template-columns: repeat(3, 1fr); margin-top:0;" id="ePayModes">
+                            <button type="button" class="pay-mode active" data-mode="Cash" onclick="setExpPay('Cash')">Cash</button>
+                            <button type="button" class="pay-mode" data-mode="UPI" onclick="setExpPay('UPI')">UPI</button>
+                            <button type="button" class="pay-mode" data-mode="Bank" onclick="setExpPay('Bank')">Bank</button>
+                        </div>
+                        <label>Note</label>
+                        <input type="text" id="eNote" placeholder="e.g. October shop rent" maxlength="200" style="margin-bottom:1rem;">
+                        <button type="submit" class="btn btn-indigo" style="width:100%; padding:11px;" id="eSaveBtn"><svg class="ico"><use href="#i-plus"/></svg>Save expense</button>
+                    </form>
+                    <div class="card">
+                        <div class="card-head"><div><h3>By category</h3><p id="expBarsSub">This month</p></div></div>
+                        <div class="hbars" id="expPageBars"></div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- ================= 6. SALES HISTORY TAB ================= -->
@@ -715,7 +970,27 @@
             try { const v = localStorage.getItem('labelSize'); if (v) document.getElementById('labelSize').value = v; } catch (e) {}
         });
 
-        const TYPES = ['Shirt', 'T-Shirt', 'Jeans', 'Trouser', 'Cargo', 'Kurta', 'Short Kurta', 'Jacket', 'Other'];
+        const TYPES = ['Shirt', 'T-Shirt', 'Jeans', 'Trouser', 'Cargo', 'Kurta', 'Short Kurta', 'Jacket', 'Track Pant', 'Shorts', 'Sweatshirt', 'Other'];
+        // Ready-made clothing templates: pick one to fill type, category and the usual size set
+        const KID_AGES = ['2-3Y', '4-5Y', '6-7Y', '8-9Y', '10-11Y', '12-13Y'];
+        const TEMPLATES = [
+            { key: 'shirt', name: 'Shirt', type: 'Shirt', category: 'Men', sizes: ['M', 'L', 'XL', 'XXL'], icon: 'shirt' },
+            { key: 'shirt-num', name: 'Shirt (38-44)', type: 'Shirt', category: 'Men', sizes: ['38', '40', '42', '44'], icon: 'shirt' },
+            { key: 'tshirt', name: 'T-shirt', type: 'T-Shirt', category: 'Men', sizes: ['S', 'M', 'L', 'XL', 'XXL'], icon: 'shirt' },
+            { key: 'jeans', name: 'Jeans', type: 'Jeans', category: 'Men', sizes: ['30', '32', '34', '36', '38', '40'], icon: 'pants' },
+            { key: 'trouser', name: 'Trouser', type: 'Trouser', category: 'Men', sizes: ['30', '32', '34', '36', '38'], icon: 'pants' },
+            { key: 'cargo', name: 'Cargo', type: 'Cargo', category: 'Men', sizes: ['30', '32', '34', '36'], icon: 'pants' },
+            { key: 'track', name: 'Track pant', type: 'Track Pant', category: 'Men', sizes: ['M', 'L', 'XL', 'XXL'], icon: 'pants' },
+            { key: 'kurta', name: 'Kurta', type: 'Kurta', category: 'Men', sizes: ['M', 'L', 'XL', 'XXL'], icon: 'kurta' },
+            { key: 'short-kurta', name: 'Short kurta', type: 'Short Kurta', category: 'Men', sizes: ['M', 'L', 'XL', 'XXL'], icon: 'kurta' },
+            { key: 'jacket', name: 'Jacket', type: 'Jacket', category: 'Men', sizes: ['M', 'L', 'XL', 'XXL'], icon: 'jacket' },
+            { key: 'kids-jeans', name: 'Kids jeans', type: 'Jeans', category: 'Kids', sizes: ['20', '22', '24', '26', '28', '30'], icon: 'pants' },
+            { key: 'kids-shirt', name: 'Kids shirt', type: 'Shirt', category: 'Kids', sizes: KID_AGES, icon: 'shirt' },
+            { key: 'kids-tshirt', name: 'Kids T-shirt', type: 'T-Shirt', category: 'Kids', sizes: KID_AGES, icon: 'shirt' },
+            { key: 'kurti', name: 'Kurti', type: 'Kurta', category: 'Women', sizes: ['S', 'M', 'L', 'XL', 'XXL'], icon: 'kurta' },
+            { key: 'women-jeans', name: "Women's jeans", type: 'Jeans', category: 'Women', sizes: ['26', '28', '30', '32', '34'], icon: 'pants' }
+        ];
+        const EXPENSE_CATS = ['Rent', 'Electricity', 'Salary', 'Tea & snacks', 'Transport', 'Bags & packing', 'Repairs', 'Advertising', 'Phone & internet', 'Other'];
         const SLOW_DAYS = 90;
 
         let inventory = [];
@@ -724,6 +999,9 @@
         let purchases = [];
         let movements = [];
         let staff = [];
+        let expenses = [];
+        let expPay = 'Cash';
+        let activeTpl = null;
         let myRole = null;
         let cart = [];
         let payMode = 'Cash';
@@ -745,9 +1023,9 @@
         function toast(msg, ms = 2500) {
             const t = document.getElementById('toast');
             t.innerText = msg;
-            t.style.display = 'block';
+            t.classList.add('show');
             clearTimeout(toast._t);
-            toast._t = setTimeout(() => t.style.display = 'none', ms);
+            toast._t = setTimeout(() => t.classList.remove('show'), ms);
         }
 
         function fail(error, what) {
@@ -796,7 +1074,7 @@
             document.getElementById('appShell').style.display = loggedIn ? 'grid' : 'none';
             if (!loggedIn) {
                 if (channel) { db.removeChannel(channel); channel = null; }
-                inventory = []; sales = []; customers = []; purchases = []; movements = []; cart = [];
+                inventory = []; sales = []; customers = []; purchases = []; movements = []; expenses = []; cart = [];
                 myRole = null;
                 document.body.classList.remove('is-owner');
                 document.getElementById('userEmail').innerText = '';
@@ -804,9 +1082,11 @@
             }
             if (session.user.email === document.getElementById('userEmail').innerText) return;
             document.getElementById('userEmail').innerText = session.user.email;
+            document.getElementById('userAvatar').innerText = (session.user.email || '?')[0];
 
             const { data: role } = await db.rpc('staff_role');
             myRole = role;
+            document.getElementById('userRole').innerText = role || 'not on staff list';
             document.body.classList.toggle('is-owner', role === 'owner');
             if (!role) {
                 toast('Your account is not on the staff list yet. Ask the owner to add your email under Staff.', 8000);
@@ -865,8 +1145,21 @@
             staff = data;
         }
 
+        async function loadExpenses() {
+            const { data, error } = await db.from('expenses').select('*').order('spent_on', { ascending: false }).order('id', { ascending: false }).limit(2000);
+            if (error) {
+                expenses = [];
+                // Table not created yet: the owner still has to run 0005_expenses.sql
+                if (/expenses/.test(error.message || '') && /(exist|schema cache)/i.test(error.message || '')) { expensesMissing = true; return; }
+                fail(error, 'Loading expenses'); return;
+            }
+            expensesMissing = false;
+            expenses = data.map(e => ({ ...e, amount: Number(e.amount) }));
+        }
+        let expensesMissing = false;
+
         async function loadAll() {
-            await Promise.all([loadInventory(), loadSales(), loadCustomers()]);
+            await Promise.all([loadInventory(), loadSales(), loadCustomers(), loadExpenses()]);
             renderBrandList();
         }
 
@@ -882,6 +1175,10 @@
                         const idx = inventory.findIndex(i => i.id === row.id);
                         if (idx >= 0) inventory[idx] = row; else inventory.push(row);
                     }
+                    refreshActiveView();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, async () => {
+                    await loadExpenses();
                     refreshActiveView();
                 })
                 .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sales' }, async () => {
@@ -908,12 +1205,13 @@
             if (activeView === 'history') renderHistory();
             if (activeView === 'movements') renderMovements();
             if (activeView === 'staff') renderStaff();
+            if (activeView === 'expenses') renderExpenses();
         }
 
         // Tab Navigation
         async function openView(name) {
             activeView = name;
-            const tabs = ['dash', 'pos', 'inventory', 'purchases', 'customers', 'history', 'movements', 'backup', 'staff'];
+            const tabs = ['dash', 'pos', 'inventory', 'purchases', 'customers', 'history', 'movements', 'expenses', 'backup', 'staff'];
             tabs.forEach(t => {
                 const el = document.getElementById('view-' + t);
                 const btn = document.getElementById('btn-' + t);
@@ -926,11 +1224,15 @@
             if (activeEl) activeEl.classList.add('active');
             if (activeBtn) activeBtn.classList.add('active');
             if (activeBtn) document.getElementById('pageTitle').innerText = activeBtn.lastElementChild.innerText;
+            document.getElementById('dashActions').style.display = name === 'dash' ? '' : 'none';
+            document.getElementById('pageSub').innerText = PAGE_SUBS[name] || '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
 
             if (name === 'purchases') await loadPurchases();
             if (name === 'movements') await loadMovements();
             if (name === 'customers') await loadCustomers();
             if (name === 'staff') await loadStaff();
+            if (name === 'expenses') await loadExpenses();
             refreshActiveView();
         }
 
@@ -938,19 +1240,111 @@
         const isLow = i => (i.stock || 0) <= (i.reorder_level ?? 0);
         const isSlow = i => (i.stock || 0) > 0 && daysSince(i.last_sold_at || i.last_received_at || i.created_at) >= SLOW_DAYS;
 
+        const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+        const PAGE_SUBS = {
+            pos: 'Customer, items, payment. Scan a barcode or search to add items.',
+            inventory: 'Add garments from a template, edit prices and print barcode labels.',
+            purchases: 'Supplier bills that add stock when you press "Add to stock".',
+            customers: 'Customers saved at billing, with udhaar balances.',
+            history: 'Every completed bill, newest first.',
+            movements: 'Every stock change, with who made it.',
+            expenses: 'Record what the shop spends. Totals show on the dashboard.',
+            backup: 'Download your data or import stock from a spreadsheet.',
+            staff: 'Who can sign in to this store.'
+        };
+        const ymd = d => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+        const monthKey = d => ymd(d).slice(0, 7);
+        const shortInr = n => n >= 100000 ? '₹' + (n / 100000).toFixed(n >= 1000000 ? 0 : 1).replace(/\.0$/, '') + 'L' : n >= 1000 ? '₹' + (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : '₹' + Math.round(n);
+        function niceMax(v) {
+            if (v <= 0) return 1000;
+            const p = Math.pow(10, Math.floor(Math.log10(v)));
+            const f = v / p;
+            return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+        }
+        // Vertical bar with only the data end rounded, anchored on the baseline
+        function barPath(x, y, w, h, r = 4) {
+            if (h <= 0) return '';
+            r = Math.min(r, w / 2, h);
+            return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+        }
+        function hbarsHTML(rows, cls = '') {
+            if (rows.length === 0) return '';
+            const max = Math.max(...rows.map(r => r.v), 1);
+            return rows.map(r => `
+                <div class="hbar" title="${esc(r.name)}: ${esc(r.label)}">
+                    <span class="name">${esc(r.name)}</span>
+                    <div class="track"><div class="fill ${cls}" style="width:${Math.max(2, r.v / max * 100).toFixed(1)}%"></div></div>
+                    <span class="val">${esc(r.label)}${r.extra ? `<small>${esc(r.extra)}</small>` : ''}</span>
+                </div>`).join('');
+        }
+
+        function renderTrendChart() {
+            const box = document.getElementById('trendChart');
+            const days = [];
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            for (let i = 13; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); days.push({ key: ymd(d), date: d, sales: 0, exp: 0 }); }
+            const byKey = Object.fromEntries(days.map(d => [d.key, d]));
+            sales.forEach(s => { const d = byKey[ymd(s.created_at)]; if (d) d.sales += s.total; });
+            expenses.forEach(e => { const d = byKey[e.spent_on]; if (d) d.exp += e.amount; });
+
+            const W = 680, H = 250, L = 46, R = 8, T = 10, B = 26;
+            const pw = W - L - R, ph = H - T - B;
+            const max = niceMax(Math.max(...days.map(d => Math.max(d.sales, d.exp))));
+            const ticks = [0, .25, .5, .75, 1].map(f => f * max);
+            const slot = pw / days.length;
+            const bw = Math.min(14, slot * .3);
+            const y = v => T + ph - (v / max) * ph;
+            let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily sales and expenses, last 14 days">`;
+            ticks.forEach(t => svg += `<line class="gridline" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="axis-label" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${shortInr(t)}</text>`);
+            days.forEach((d, i) => {
+                const cx = L + slot * i + slot / 2;
+                svg += `<path class="s1" d="${barPath(cx - bw - 1, y(d.sales), bw, T + ph - y(d.sales))}"/>`;
+                svg += `<path class="s2" d="${barPath(cx + 1, y(d.exp), bw, T + ph - y(d.exp))}"/>`;
+                if (i % 2 === (days.length - 1) % 2) svg += `<text class="axis-label" x="${cx}" y="${H - 6}" text-anchor="middle">${d.date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</text>`;
+                svg += `<rect class="hit" data-i="${i}" x="${L + slot * i}" y="${T}" width="${slot}" height="${ph}" rx="6"/>`;
+            });
+            svg += '</svg>';
+            box.innerHTML = svg + '<div class="chart-tip" id="trendTip"></div>';
+            const tip = box.querySelector('#trendTip');
+            box.querySelectorAll('.hit').forEach(r => {
+                const show = () => {
+                    const d = days[+r.dataset.i];
+                    tip.innerHTML = `<b>${d.date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}</b>
+                        <div class="row"><span><i class="sw1" style="background:var(--series-1)"></i>Sales</span><b style="display:inline">${inr(d.sales)}</b></div>
+                        <div class="row"><span><i style="background:var(--series-2)"></i>Expenses</span><b style="display:inline">${inr(d.exp)}</b></div>`;
+                    const bb = box.getBoundingClientRect(), rb = r.getBoundingClientRect();
+                    tip.classList.add('show');
+                    const left = Math.min(Math.max(rb.left - bb.left + rb.width / 2 - tip.offsetWidth / 2, 0), bb.width - tip.offsetWidth);
+                    tip.style.left = left + 'px';
+                    tip.style.top = '0px';
+                };
+                r.addEventListener('mouseenter', show);
+                r.addEventListener('click', show);
+                r.addEventListener('mouseleave', () => tip.classList.remove('show'));
+            });
+        }
+
         function renderDashboard() {
             const now = new Date();
             const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+            document.getElementById('pageSub').innerText = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
             const todaySales = sales.filter(s => new Date(s.created_at) >= startOfToday);
             document.getElementById('dashTodaySales').innerText = inr(todaySales.reduce((acc, s) => acc + s.total, 0));
             const sumOf = k => todaySales.reduce((acc, s) => acc + s[k], 0);
-            document.getElementById('dashTodayBills').innerText = `${todaySales.length} bill(s) · Cash ${inr(sumOf('paid_cash'))} · UPI ${inr(sumOf('paid_upi'))} · Udhaar ${inr(sumOf('udhaar'))}`;
+            document.getElementById('dashTodayBills').innerText = `${todaySales.length} bill(s) · Cash ${inr(sumOf('paid_cash'))} · UPI ${inr(sumOf('paid_upi'))}`;
 
             const monthSales = sales.filter(s => new Date(s.created_at) >= thirtyDaysAgo);
-            document.getElementById('dashMonthSales').innerText = inr(monthSales.reduce((acc, s) => acc + s.total, 0));
-            document.getElementById('dashMonthBills').innerText = `${monthSales.length} Orders Completed`;
+            const monthTotal = monthSales.reduce((acc, s) => acc + s.total, 0);
+            document.getElementById('dashMonthSales').innerText = inr(monthTotal);
+            document.getElementById('dashMonthBills').innerText = `${monthSales.length} bills · avg ${inr(monthSales.length ? Math.round(monthTotal / monthSales.length) : 0)} per bill`;
+
+            const thisMonth = monthKey(now);
+            const monthExp = expenses.filter(e => e.spent_on.slice(0, 7) === thisMonth);
+            const expTotal = monthExp.reduce((a, e) => a + e.amount, 0);
+            document.getElementById('dashExpMonth').innerText = inr(expTotal);
+            document.getElementById('dashExpSub').innerText = expensesMissing ? 'Run the expenses SQL to switch this on' : `${plural(monthExp.length, 'entry', 'entries')} in ${now.toLocaleDateString('en-IN', { month: 'long' })}`;
 
             let totalPieces = 0, totalRetailVal = 0;
             const byType = {};
@@ -964,14 +1358,39 @@
                 byType[t].val += stock * item.price;
             });
 
-            document.getElementById('dashTotalPieces').innerText = `${totalPieces} Pieces`;
-            document.getElementById('dashTotalStyles').innerText = `Across ${inventory.length} Garment Styles`;
-            document.getElementById('dashTotalBadge').innerText = `${totalPieces} Total Pieces In Stock`;
+            document.getElementById('dashTotalPieces').innerText = `${totalPieces.toLocaleString('en-IN')} pcs`;
+            document.getElementById('dashTotalStyles').innerText = `${inventory.length} styles`;
+            document.getElementById('dashTotalBadge').innerText = `${totalPieces.toLocaleString('en-IN')} pcs`;
             document.getElementById('dashRetailValuation').innerText = inr(totalRetailVal);
 
             const owing = customers.filter(c => c.due > 0);
             document.getElementById('dashUdhaar').innerText = inr(owing.reduce((s, c) => s + c.due, 0));
             document.getElementById('dashUdhaarSub').innerText = `${owing.length} customer(s) owe money`;
+
+            renderTrendChart();
+
+            // Payment mix, last 30 days (older single-mode bills fall back to their pay mode)
+            const mix = { Cash: 0, UPI: 0, Udhaar: 0 };
+            monthSales.forEach(s => {
+                if (s.paid_cash + s.paid_upi + s.udhaar > 0) { mix.Cash += s.paid_cash; mix.UPI += s.paid_upi; mix.Udhaar += s.udhaar; }
+                else if (mix[s.pay_mode] !== undefined) mix[s.pay_mode] += s.total;
+            });
+            const mixSum = mix.Cash + mix.UPI + mix.Udhaar;
+            const mixRows = [['Cash', mix.Cash, 'var(--series-1)', 'sw1'], ['UPI', mix.UPI, 'var(--series-2)', 'sw2'], ['Udhaar', mix.Udhaar, 'var(--series-3)', 'sw3']];
+            document.getElementById('mixTotal').innerText = inr(mixSum);
+            document.getElementById('mixBar').innerHTML = mixSum === 0 ? '' : mixRows.filter(r => r[1] > 0)
+                .map(([k, v, c]) => `<div style="width:${(v / mixSum * 100).toFixed(2)}%; background:${c};" title="${k}: ${inr(v)}"></div>`).join('');
+            document.getElementById('mixList').innerHTML = mixRows.map(([k, v, , sw]) => `
+                <div class="row legend"><span><i class="${sw}"></i>${k}</span><span><b>${inr(v)}</b> <span class="muted">${mixSum ? Math.round(v / mixSum * 100) : 0}%</span></span></div>`).join('');
+
+            const typeRows = Object.entries(byType).sort((a, b) => b[1].pcs - a[1].pcs)
+                .map(([t, v]) => ({ name: t, v: v.pcs, label: `${v.pcs.toLocaleString('en-IN')} pcs`, extra: inr(v.val) }));
+            document.getElementById('typeCards').innerHTML = hbarsHTML(typeRows) || '<div class="empty">No stock yet.</div>';
+
+            const catRows = expenseByCategory(monthExp);
+            document.getElementById('expCatSub').innerText = `${now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })} · ${inr(expTotal)}`;
+            document.getElementById('expCatBars').innerHTML = hbarsHTML(catRows, 'f2') ||
+                `<div class="empty">${expensesMissing ? 'Expenses are not switched on yet.' : 'No expenses this month.'}<br><a href="javascript:void(0)" onclick="openView('expenses')">Add an expense</a></div>`;
 
             const low = inventory.filter(isLow).sort((a, b) => a.stock - b.stock);
             document.getElementById('lowCount').innerText = low.length;
@@ -982,16 +1401,115 @@
             document.getElementById('slowCount').innerText = slow.length;
             document.getElementById('slowList').innerHTML = slow.length === 0 ? `<li class="muted">Everything has sold or arrived in the last ${SLOW_DAYS} days.</li>` :
                 slow.slice(0, 100).map(i => `<li><b>${esc(i.name)} (${esc(i.size)})</b><span>${i.stock} pcs · ${i.last_sold_at ? 'last sold ' + day(i.last_sold_at) : 'never sold online'}</span></li>`).join('');
+        }
 
-            const colors = ['#3b82f6', '#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#64748b'];
-            document.getElementById('typeCards').innerHTML = Object.entries(byType)
-                .sort((a, b) => b[1].pcs - a[1].pcs)
-                .map(([t, v], i) => `
-                    <div class="type-tile" style="border-top: 3px solid ${colors[i % colors.length]};">
-                        <div style="font-size: 11px; font-weight: bold; color: var(--muted); text-transform: uppercase;">${esc(t)}</div>
-                        <div style="font-size: 22px; font-weight: 800; color: var(--text); margin: 4px 0;">${v.pcs} Pieces</div>
-                        <div style="font-size: 11px; color: var(--muted);">Selling Value: ${inr(v.val)}</div>
-                    </div>`).join('');
+        function expenseByCategory(list) {
+            const by = {};
+            list.forEach(e => by[e.category] = (by[e.category] || 0) + e.amount);
+            return Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ name: k, v, label: inr(v) }));
+        }
+
+        // ================= EXPENSES =================
+        function setExpPay(mode) {
+            expPay = mode;
+            document.querySelectorAll('#ePayModes .pay-mode').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+        }
+
+        function renderExpenseCats() {
+            const used = [...new Set(expenses.map(e => e.category))];
+            const all = [...new Set([...EXPENSE_CATS, ...used])];
+            document.getElementById('expCatList').innerHTML = all.map(c => `<option value="${esc(c)}">`).join('');
+            const cur = document.getElementById('eCat').value.trim().toLowerCase();
+            document.getElementById('expCatChips').innerHTML = EXPENSE_CATS.map(c =>
+                `<button type="button" class="chip${c.toLowerCase() === cur ? ' on' : ''}" onclick="document.getElementById('eCat').value=this.innerText; renderExpenseCats(); document.getElementById('eAmount').focus()">${esc(c)}</button>`).join('');
+        }
+
+        async function saveExpense(e) {
+            e.preventDefault();
+            if (expensesMissing) { toast('Expenses are not switched on yet. The owner needs to run 0005_expenses.sql in Supabase.', 6000); return; }
+            const row = {
+                category: document.getElementById('eCat').value.trim(),
+                amount: parseFloat(document.getElementById('eAmount').value),
+                spent_on: document.getElementById('eDate').value || ymd(new Date()),
+                pay_mode: expPay,
+                note: document.getElementById('eNote').value.trim() || null
+            };
+            if (!row.category || !(row.amount > 0)) { toast('Pick a category and enter the amount.'); return; }
+            const btn = document.getElementById('eSaveBtn');
+            btn.disabled = true;
+            const { data, error } = await db.from('expenses').insert(row).select().single();
+            btn.disabled = false;
+            if (error) { fail(error, 'Saving expense'); return; }
+            if (!expenses.some(x => x.id === data.id)) expenses.unshift({ ...data, amount: Number(data.amount) });
+            expenses.sort((a, b) => b.spent_on.localeCompare(a.spent_on) || b.id - a.id);
+            ['eCat', 'eAmount', 'eNote'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('expMonth').value = row.spent_on.slice(0, 7);
+            renderExpenses();
+            toast(`Expense saved: ${row.category} ${inr(row.amount)}`);
+        }
+
+        async function deleteExpense(id) {
+            const x = expenses.find(e => e.id === id);
+            if (!x || !confirm(`Delete expense ${x.category} ${inr(x.amount)} on ${day(x.spent_on)}?`)) return;
+            const { error } = await db.from('expenses').delete().eq('id', id);
+            if (error) { fail(error, 'Deleting expense'); return; }
+            expenses = expenses.filter(e => e.id !== id);
+            renderExpenses();
+            toast('Expense deleted');
+        }
+
+        function renderExpenses() {
+            const monthEl = document.getElementById('expMonth');
+            if (!monthEl.value) monthEl.value = monthKey(new Date());
+            const dateEl = document.getElementById('eDate');
+            if (!dateEl.value) dateEl.value = ymd(new Date());
+            renderExpenseCats();
+            const m = monthEl.value;
+            const q = document.getElementById('expFilter').value.trim().toLowerCase();
+            const inMonth = expenses.filter(e => e.spent_on.slice(0, 7) === m);
+            const shown = inMonth.filter(e => !q || [e.category, e.note, e.pay_mode].some(v => (v || '').toLowerCase().includes(q)));
+            const monthName = new Date(m + '-01T00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+            const total = inMonth.reduce((a, e) => a + e.amount, 0);
+
+            const todayKey = ymd(new Date());
+            const todayList = expenses.filter(e => e.spent_on === todayKey);
+            document.getElementById('expToday').innerText = inr(todayList.reduce((a, e) => a + e.amount, 0));
+            document.getElementById('expTodaySub').innerText = plural(todayList.length, 'entry', 'entries');
+            document.getElementById('expMonthTitle').innerText = monthName;
+            document.getElementById('expMonthTotal').innerText = inr(total);
+            document.getElementById('expMonthSub').innerText = `${plural(inMonth.length, 'entry', 'entries')} · Cash ${inr(inMonth.filter(e => e.pay_mode === 'Cash').reduce((a, e) => a + e.amount, 0))}`;
+            const cats = expenseByCategory(inMonth);
+            document.getElementById('expTopCat').innerText = cats[0]?.name || '—';
+            document.getElementById('expTopCatSub').innerText = cats[0] ? `${inr(cats[0].v)} · ${Math.round(cats[0].v / total * 100)}% of the month` : 'No entries';
+            const mSales = sales.filter(s => monthKey(s.created_at) === m).reduce((a, s) => a + s.total, 0);
+            document.getElementById('expMonthSales').innerText = inr(mSales);
+            document.getElementById('expMonthShare').innerText = mSales > 0 ? `Expenses are ${Math.round(total / mSales * 100)}% of sales` : 'No sales recorded this month';
+            document.getElementById('expBarsSub').innerText = monthName;
+            document.getElementById('expPageBars').innerHTML = hbarsHTML(cats, 'f2') || '<div class="empty">No expenses this month.</div>';
+
+            const tbody = document.getElementById('expenseTable');
+            if (expensesMissing) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty">Expenses are not switched on yet. The owner needs to run <b>0005_expenses.sql</b> once in the Supabase SQL editor.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = shown.length === 0 ? `<tr><td colspan="7" class="empty">No expenses in ${esc(monthName)}${q ? ' match your search' : ''}.</td></tr>` :
+                shown.map(e => `<tr>
+                    <td style="white-space:nowrap;">${day(e.spent_on + 'T00:00')}</td>
+                    <td><b>${esc(e.category)}</b></td>
+                    <td class="hide-sm muted">${esc(e.note || '')}</td>
+                    <td><span class="pill">${esc(e.pay_mode)}</span></td>
+                    <td class="num"><b>${inr(e.amount)}</b></td>
+                    <td class="hide-sm muted" style="font-size:.78rem;">${esc((e.created_by_email || '').split('@')[0])}</td>
+                    <td style="text-align:right;"><button type="button" class="btn btn-sm btn-danger owner-only" onclick="deleteExpense(${e.id})">Delete</button></td>
+                </tr>`).join('') + `<tr><td colspan="4" style="text-align:right;"><b>Total${q ? ' shown' : ''}</b></td><td class="num"><b>${inr(shown.reduce((a, e) => a + e.amount, 0))}</b></td><td colspan="2" class="hide-sm"></td></tr>`;
+        }
+
+        function exportExpensesCSV() {
+            const m = document.getElementById('expMonth').value;
+            const rows = expenses.filter(e => !m || e.spent_on.slice(0, 7) === m);
+            const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+            const csv = ['Date,Category,Amount,Paid by,Note,Added by', ...rows.map(e => [e.spent_on, e.category, e.amount, e.pay_mode, e.note, e.created_by_email].map(q).join(','))].join('\n');
+            download(`expenses-${m || 'all'}.csv`, csv, 'text/csv');
         }
 
         // ================= POS CATALOG & CART =================
@@ -1286,30 +1804,104 @@
             document.getElementById('brandList').innerHTML = brands.map(b => `<option value="${esc(b)}">`).join('');
         }
 
+        // ---- Clothing templates ----
+        const tplSizeLabel = t => t.sizes.length > 2 ? `${t.sizes[0]} – ${t.sizes[t.sizes.length - 1]}` : t.sizes.join(', ');
+        function renderTemplates() {
+            document.getElementById('tplGrid').innerHTML = TEMPLATES.map(t => `
+                <button type="button" class="tpl${activeTpl === t.key ? ' on' : ''}" onclick="applyTemplate('${t.key}')">
+                    <span class="tpl-ico"><svg class="ico"><use href="#i-${t.icon}"/></svg></span>
+                    <span><b>${esc(t.name)}</b><small>${t.category} · ${esc(tplSizeLabel(t))}</small></span>
+                </button>`).join('');
+            const opts = TEMPLATES.map(t => `<option value="${t.key}">${esc(t.name)} (${t.category}, ${esc(tplSizeLabel(t))})</option>`).join('');
+            document.getElementById('pAddTpl').innerHTML = '<option value="">+ From template…</option>' + opts;
+        }
+
+        function applyTemplate(key) {
+            const t = TEMPLATES.find(x => x.key === key);
+            if (!t) return;
+            if (activeTpl === key) { clearTemplate(); return; }
+            activeTpl = key;
+            document.getElementById('gType').value = t.type;
+            document.getElementById('gCat').value = t.category;
+            document.getElementById('gSize').value = t.sizes.join(', ');
+            const tag = document.getElementById('tplActive');
+            tag.style.display = '';
+            tag.innerText = `Template: ${t.name}`;
+            renderTemplates();
+            syncSizeChips();
+            document.getElementById('gBrand').focus();
+        }
+
+        function clearTemplate() {
+            activeTpl = null;
+            document.getElementById('tplActive').style.display = 'none';
+            document.getElementById('gSize').value = '';
+            renderTemplates();
+            syncSizeChips();
+        }
+
+        const parseSizes = v => [...new Set(String(v || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean))];
+
+        // Size chips under the form: toggle which sizes of the template to create
+        function syncSizeChips() {
+            const t = TEMPLATES.find(x => x.key === activeTpl);
+            const chosen = parseSizes(document.getElementById('gSize').value);
+            const pick = document.getElementById('sizePick');
+            pick.classList.toggle('show', !!t);
+            if (t) {
+                const all = [...new Set([...t.sizes, ...chosen])];
+                document.getElementById('sizeChips').innerHTML = all.map(sz =>
+                    `<button type="button" class="chip${chosen.includes(sz.toUpperCase()) ? ' on' : ''}" onclick="toggleSize('${esc(sz)}')">${esc(sz)}</button>`).join('');
+            }
+            const many = chosen.length > 1;
+            document.getElementById('gStockLabel').innerText = many ? 'Qty per size (Pcs) *' : 'Stock Quantity (Pcs) *';
+            document.getElementById('gBarcode').disabled = many;
+            document.getElementById('gBarcode').placeholder = many ? 'Auto for each size' : 'Auto or Enter Barcode';
+            document.getElementById('gSaveBtn').innerText = many ? `Save ${chosen.length} sizes to stock` : 'Save garment to stock';
+        }
+
+        function toggleSize(sz) {
+            const t = TEMPLATES.find(x => x.key === activeTpl);
+            let chosen = parseSizes(document.getElementById('gSize').value);
+            chosen = chosen.includes(sz.toUpperCase()) ? chosen.filter(s => s !== sz.toUpperCase()) : [...chosen, sz.toUpperCase()];
+            const order = t ? t.sizes.map(s => s.toUpperCase()) : [];
+            chosen.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+            document.getElementById('gSize').value = chosen.join(', ');
+            syncSizeChips();
+        }
+
         async function saveGarment(e) {
             e.preventDefault();
             const brand = document.getElementById('gBrand').value.trim().toUpperCase();
             const type = document.getElementById('gType').value;
-            const row = {
+            const sizes = parseSizes(document.getElementById('gSize').value);
+            if (sizes.length === 0) sizes.push('Free');
+            const typedBarcode = sizes.length === 1 ? document.getElementById('gBarcode').value.trim() : '';
+            const stamp = Date.now().toString().slice(-6);
+            const base = {
                 brand, type,
                 name: `${brand} ${type}`,
                 category: document.getElementById('gCat').value,
-                size: document.getElementById('gSize').value.trim().toUpperCase() || 'Free',
                 color: document.getElementById('gColor').value.trim().toUpperCase() || null,
                 price: parseFloat(document.getElementById('gPrice').value) || 0,
                 stock: parseInt(document.getElementById('gStock').value) || 0,
-                reorder_level: parseInt(document.getElementById('gReorder').value) || 0,
-                barcode: document.getElementById('gBarcode').value.trim() || 'SKU-' + Date.now().toString().slice(-7)
+                reorder_level: parseInt(document.getElementById('gReorder').value) || 0
             };
+            const rows = sizes.map((size, n) => ({ ...base, size, barcode: typedBarcode || `SKU-${stamp}${sizes.length > 1 ? String(n + 1).padStart(2, '0') : ''}` }));
 
-            const { data, error } = await db.from('items').insert(row).select().single();
+            const btn = document.getElementById('gSaveBtn');
+            btn.disabled = true;
+            const { data, error } = await db.from('items').insert(rows).select();
+            btn.disabled = false;
             if (error) { fail(error, 'Saving garment'); return; }
-            if (!inventory.some(i => i.id === data.id)) inventory.push({ ...data, price: Number(data.price) });
+            data.forEach(d => { if (!inventory.some(i => i.id === d.id)) inventory.push({ ...d, price: Number(d.price) }); });
 
             ['gBrand', 'gSize', 'gColor', 'gPrice', 'gStock', 'gBarcode'].forEach(id => document.getElementById(id).value = '');
+            if (activeTpl) { const t = TEMPLATES.find(x => x.key === activeTpl); document.getElementById('gSize').value = t.sizes.join(', '); }
+            syncSizeChips();
             renderBrandList();
             renderInventory();
-            toast('Garment added successfully to stock!');
+            toast(data.length > 1 ? `${data.length} sizes of ${base.name} added to stock` : `${base.name} added to stock`);
         }
 
         async function updateItem(id, patch, what) {
@@ -1670,7 +2262,7 @@
             document.getElementById('pBillDate').value = p.bill_date || '';
             document.getElementById('pPhoto').value = '';
             ['pSupplier', 'pBillNo', 'pBillDate', 'pPhoto'].forEach(id => document.getElementById(id).disabled = ro);
-            ['pAddLine', 'pAddRun', 'pSave', 'pCommit', 'pDelete'].forEach(id => document.getElementById(id).style.display = ro ? 'none' : '');
+            ['pAddLine', 'pAddRun', 'pAddTpl', 'pSave', 'pCommit', 'pDelete'].forEach(id => document.getElementById(id).style.display = ro ? 'none' : '');
             if (!p.id) document.getElementById('pDelete').style.display = 'none';
             document.getElementById('pLabels').style.display = ro ? '' : 'none';
 
@@ -1731,6 +2323,16 @@
                 pLines.push({ ...blankLine(prev), size });
             });
             renderPurchaseLines();
+        }
+
+        function addTemplateLines(key) {
+            const t = TEMPLATES.find(x => x.key === key);
+            if (!t || !editingPurchase || editingPurchase.status !== 'draft') return;
+            const prev = pLines[pLines.length - 1];
+            if (prev && !prev.size && !prev.brand) pLines.pop();
+            t.sizes.forEach(size => pLines.push({ ...blankLine(prev), type: t.type, category: t.category, size }));
+            renderPurchaseLines();
+            toast(`Added ${t.sizes.length} ${t.name} lines. Fill brand, price and quantity.`);
         }
 
         function validLines() {
@@ -2083,6 +2685,7 @@
 
         // Boot: fill type dropdowns, then show login or the dashboard
         document.querySelectorAll('.type-select').forEach(s => s.innerHTML = TYPES.map(t => `<option>${t}</option>`).join(''));
+        renderTemplates();
         db.auth.onAuthStateChange((_event, session) => { setTimeout(() => onSession(session), 0); });
     </script>
 </body>
