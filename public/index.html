@@ -224,6 +224,11 @@
         .list.pick li { cursor: pointer; }
         .list.pick li:hover b { color: var(--accent); }
         .row-actions { margin-top: .75rem; }
+        .edit-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 1rem; padding: .7rem 1rem; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--text, inherit); font-size: .9rem; }
+        .edit-banner b { color: var(--warn); }
+        .bill-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-top: 6px; }
+        .list li .bill-acts { margin-top: 6px; }
+        .bill-edited { font-size: .72rem; color: var(--warn); }
 
         /* Tables */
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
@@ -285,7 +290,18 @@
         @media print {
             body * { visibility: hidden; }
             #receiptArea, #receiptArea * { visibility: visible; color: #000 !important; }
-            #receiptArea { position: absolute; left: 0; top: 0; width: 78mm; padding: 4px; font-size: 11px; background: #fff; }
+            /* 58 mm thermal roll: 48 mm (384 dots) printable, so the slip is 48 mm wide with no page margin */
+            #receiptArea { position: absolute; left: 0; top: 0; width: 48mm; padding: 0 0 4mm; font-size: 10px; line-height: 1.3; background: #fff; font-family: Arial, Helvetica, sans-serif; }
+            #receiptArea p { margin: 1px 0; }
+            #receiptArea table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            #receiptArea th, #receiptArea td { padding: 2px 0 !important; background: none !important; border: 0 !important; font-size: 10px; letter-spacing: 0; text-transform: none; }
+            #receiptArea thead tr { border-bottom: 1px solid #000 !important; }
+            /* Only the slip takes paper: no blank feed after it */
+            body.print-receipt { background: #fff !important; }
+            body.print-receipt > *:not(#receiptArea) { display: none !important; }
+            #receiptArea th:nth-child(1), #receiptArea td:nth-child(1) { width: 60%; text-align: left; word-break: break-word; }
+            #receiptArea th:nth-child(2), #receiptArea td:nth-child(2) { width: 12%; text-align: center; }
+            #receiptArea th:nth-child(3), #receiptArea td:nth-child(3) { width: 28%; text-align: right; }
             body.print-labels .shell, body.print-labels #receiptArea, body.print-labels #toast { display: none !important; }
             body.print-labels #labelSheet { display: block; }
             body.print-labels #labelSheet.sheet-a4 { display: grid; }
@@ -477,6 +493,10 @@
         <!-- ================= 2. POS BILLING TAB ================= -->
         <section id="view-pos" class="tab-panel">
             <!-- Same counter flow as MedStock's OPD dispensing: 1. who, 2. what, 3. how they pay, then recent bills -->
+            <div id="editBanner" class="edit-banner" style="display:none;">
+                <span>✏️ Editing bill <b id="editBillNo"></b>. Change items, discount, customer or payment, then press <b>Save changes</b>. Stock and udhaar adjust automatically.</span>
+                <button type="button" class="btn btn-sm btn-light" onclick="cancelEditBill()">Cancel edit</button>
+            </div>
             <div class="grid-2">
                 <div class="card">
                     <h3 class="step">1. Customer</h3>
@@ -940,6 +960,7 @@
         </div>
         <div style="padding: 4px 0; border-bottom: 1px dashed black; font-size: 10px;">
             <p>Bill: <span id="recBillId"></span></p>
+            <p id="recCopy" style="font-weight: bold;"></p>
             <p>Customer: <span id="recCustomer"></span></p>
         </div>
         <table style="width: 100%; margin: 6px 0; font-size: 10px;">
@@ -1005,6 +1026,8 @@
         let myRole = null;
         let cart = [];
         let payMode = 'Cash';
+        // When a past bill is loaded back into the counter for changes
+        let editingBill = null;
         let channel = null;
         let editingPurchase = null;
         let pLines = [];
@@ -1030,7 +1053,12 @@
 
         function fail(error, what) {
             console.error(what, error);
-            toast(`${what} failed: ${error.message || error}`, 5000);
+            const msg = error.message || String(error);
+            if (/(edit_bill|delete_bill)/.test(msg) && /(not find|does not exist|schema cache)/i.test(msg)) {
+                toast(`${what} failed: the database update for editing bills (0006_edit_delete_bills.sql) has not been run yet.`, 7000);
+                return;
+            }
+            toast(`${what} failed: ${msg}`, 5000);
         }
 
         // ================= LOGIN =================
@@ -1181,7 +1209,7 @@
                     await loadExpenses();
                     refreshActiveView();
                 })
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sales' }, async () => {
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, async () => {
                     await Promise.all([loadSales(), loadCustomers()]);
                     refreshActiveView();
                 })
@@ -1532,7 +1560,7 @@
             }
 
             filtered.forEach(it => {
-                const outOfStock = (it.stock || 0) <= 0;
+                const outOfStock = available(it.id) <= 0;
                 const div = document.createElement('div');
                 div.className = 'catalog-item';
                 if (outOfStock) div.style.opacity = '0.4';
@@ -1596,8 +1624,8 @@
             const box = document.getElementById('recentBills');
             if (!box) return;
             box.innerHTML = sales.length === 0 ? '<li class="muted">No bills yet</li>' : sales.slice(0, 8).map(s => `
-                <li><b>${esc(s.bill_no)} · ${esc(s.customer)} · ${inr(s.total)}</b>
-                <span>${when(s.created_at)} · ${esc(payLabel(s))}<br>${esc(s.items.map(i => `${i.name} (${i.size}) x${i.qty}`).join(', '))}</span></li>`).join('');
+                <li><b>${esc(s.bill_no)} · ${esc(s.customer)} · ${inr(s.total)}${s.edited_at ? '<br><span class="bill-edited">edited</span>' : ''}</b>
+                <span>${when(s.created_at)} · ${esc(payLabel(s))}<br>${esc(s.items.map(i => `${i.name} (${i.size}) x${i.qty}`).join(', '))}${billActions(s.id)}</span></li>`).join('');
         }
 
         async function settleDues(id) {
@@ -1607,15 +1635,17 @@
 
         function addToCart(id) {
             const item = inventory.find(i => i.id === id);
-            if (!item || (item.stock || 0) <= 0) return;
-            if (item.price <= 1) { toast(`${item.name} has no real price yet. Fix it in Stock first.`, 4000); return; }
+            if (!item || available(id) <= 0) return;
+            const oldPrice = editingBill?.prices.get(id);
+            if (oldPrice == null && item.price <= 1) { toast(`${item.name} has no real price yet. Fix it in Stock first.`, 4000); return; }
 
             const inCart = cart.find(c => c.id === id);
             if (inCart) {
-                if (inCart.qty < item.stock) inCart.qty++;
+                if (inCart.qty < available(id)) inCart.qty++;
                 else toast('Maximum stock limit reached');
             } else {
-                cart.push({ id: item.id, name: item.name, size: item.size, price: item.price, qty: 1 });
+                // Items already on a bill being edited keep the price they were sold at
+                cart.push({ id: item.id, name: item.name, size: item.size, price: oldPrice ?? item.price, qty: 1 });
             }
             renderCart();
         }
@@ -1627,8 +1657,14 @@
 
             inCart.qty += d;
             if (inCart.qty <= 0) cart = cart.filter(c => c.id !== id);
-            else if (item && inCart.qty > item.stock) inCart.qty = item.stock;
+            else if (item && inCart.qty > available(id)) inCart.qty = available(id);
             renderCart();
+        }
+
+        // Pieces that can go on this bill: stock on the shelf, plus what the bill being edited already holds
+        function available(id) {
+            const item = inventory.find(i => i.id === id);
+            return (item?.stock || 0) + (editingBill?.qty.get(id) || 0);
         }
 
         function clearCart() {
@@ -1733,7 +1769,7 @@
         }
 
         async function checkout() {
-            if (cart.length === 0) { toast('Cart is empty'); return; }
+            if (cart.length === 0) { toast(editingBill ? 'A bill needs at least one item. To cancel the whole bill, delete it.' : 'Cart is empty', 4000); return; }
             const pay = payMode;
             const name = document.getElementById('custName')?.value.trim() || '';
             const phone = document.getElementById('custPhone')?.value.trim() || '';
@@ -1744,6 +1780,8 @@
                 toast('For Udhaar, enter the customer name and 10-digit mobile number.', 4000);
                 return;
             }
+            const editing = editingBill;
+            if (editing && !confirm(`Save changes to bill ${editing.bill_no}? Stock and udhaar will be adjusted.`)) return;
             const btn = document.getElementById('checkoutBtn');
             btn.disabled = true;
 
@@ -1755,36 +1793,55 @@
                 p_lines: cart.map(c => ({ item_id: c.id, qty: c.qty }))
             };
             if (split) Object.assign(args, { p_cash: split.cash, p_upi: split.upi });
-            const { data: sale, error } = await db.rpc('checkout', args);
+            if (editing) args.p_sale = editing.id;
+            const { data: sale, error } = await db.rpc(editing ? 'edit_bill' : 'checkout', args);
             btn.disabled = false;
-            if (error) { fail(error, 'Sale'); await loadInventory(); renderCatalog(); return; }
+            if (error) { fail(error, editing ? 'Saving bill' : 'Sale'); await loadInventory(); renderCatalog(); return; }
 
-            const printed = { ...sale, total: Number(sale.total), items: cart.map(c => ({ ...c })) };
             await loadCustomers();
-            const cust = customers.find(c => c.id === printed.customer_id);
+            printReceipt({ ...sale, items: cart.map(c => ({ ...c })) }, editing ? 'REVISED BILL' : '');
 
-            // Thermal Slip
-            document.getElementById('recBillId').innerText = printed.bill_no;
-            document.getElementById('recDate').innerText = when(printed.created_at);
-            document.getElementById('recCustomer').innerText = printed.customer;
-            document.getElementById('recTotal').innerText = printed.total;
-            document.getElementById('recPay').innerText = payLabel(printed);
-            document.getElementById('recDiscRow').innerText = Number(printed.discount) > 0 ? `Subtotal ₹${Number(printed.subtotal)} - Discount ₹${Number(printed.discount)}` : '';
+            editingBill = null;
+            resetCounter();
+            await Promise.all([loadInventory(), loadSales()]);
+            renderCatalog();
+            renderRecentBills();
+            toast(editing ? `Bill ${sale.bill_no} updated` : `Bill ${sale.bill_no} saved`);
+        }
+
+        // Thermal slip for a new, edited or reprinted bill
+        function printReceipt(bill, copyNote) {
+            const cust = customers.find(c => c.id === bill.customer_id);
+            document.getElementById('recBillId').innerText = bill.bill_no;
+            document.getElementById('recCopy').innerText = copyNote || '';
+            document.getElementById('recDate').innerText = when(bill.created_at);
+            document.getElementById('recCustomer').innerText = bill.customer;
+            document.getElementById('recTotal').innerText = Number(bill.total);
+            document.getElementById('recPay').innerText = payLabel(bill);
+            document.getElementById('recDiscRow').innerText = Number(bill.discount) > 0 ? `Subtotal ₹${Number(bill.subtotal)} - Discount ₹${Number(bill.discount)}` : '';
             document.getElementById('recDue').innerText = cust && cust.due > 0 ? `Total udhaar due: ₹${cust.due}` : '';
 
             const tbody = document.getElementById('recItems');
             tbody.innerHTML = '';
-            printed.items.forEach(it => {
+            bill.items.forEach(it => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${esc(it.name)} (${esc(it.size)})</td><td>${it.qty}</td><td style="text-align: right;">₹${it.price * it.qty}</td>`;
+                tr.innerHTML = `<td>${esc(it.name)} (${esc(it.size)})</td><td>${it.qty}</td><td style="text-align: right;">₹${Number(it.price) * it.qty}</td>`;
                 tbody.appendChild(tr);
             });
 
             const recBox = document.getElementById('receiptArea');
+            let pageStyle = document.getElementById('receiptPageStyle');
+            if (!pageStyle) { pageStyle = document.createElement('style'); pageStyle.id = 'receiptPageStyle'; document.head.appendChild(pageStyle); }
+            pageStyle.textContent = '@page { size: 58mm auto; margin: 0; }';
             recBox.style.display = 'block';
+            document.body.classList.add('print-receipt');
             window.print();
+            document.body.classList.remove('print-receipt');
             recBox.style.display = 'none';
+            pageStyle.textContent = '';
+        }
 
+        function resetCounter() {
             clearCart();
             ['custName', 'custPhone'].forEach(id => document.getElementById(id).value = '');
             document.getElementById('custHint').innerText = '';
@@ -1792,10 +1849,95 @@
             document.getElementById('discVal').value = 0;
             ['splitCash', 'splitUpi', 'cashGiven'].forEach(id => document.getElementById(id).value = '');
             setPayMode('Cash');
-            await Promise.all([loadInventory(), loadSales()]);
+            showEditBanner();
+        }
+
+        // ================= PAST BILLS: REPRINT, EDIT, DELETE =================
+        function billActions(id) {
+            return `<span class="bill-acts">
+                <button type="button" class="btn btn-sm btn-light" onclick="reprintBill(${id})">🖨 Reprint</button>
+                <button type="button" class="btn btn-sm btn-light owner-only" onclick="startEditBill(${id})">✏️ Edit</button>
+                <button type="button" class="btn btn-sm btn-danger owner-only" onclick="deleteBill(${id})">Delete</button>
+            </span>`;
+        }
+
+        // Bills shown on the customer page may be older than the 500 loaded for history
+        async function findBill(id) {
+            const hit = sales.find(s => s.id === id);
+            if (hit) return hit;
+            const { data, error } = await db.from('sales').select('*, sale_items(*)').eq('id', id).maybeSingle();
+            if (error) { fail(error, 'Loading bill'); return null; }
+            if (!data) { toast('This bill no longer exists'); return null; }
+            return { ...data, total: Number(data.total), paid_cash: Number(data.paid_cash || 0), paid_upi: Number(data.paid_upi || 0), udhaar: Number(data.udhaar || 0), items: data.sale_items || [] };
+        }
+
+        async function reprintBill(id) {
+            const bill = await findBill(id);
+            if (bill) printReceipt(bill, 'DUPLICATE COPY');
+        }
+
+        function showEditBanner() {
+            document.getElementById('editBanner').style.display = editingBill ? 'flex' : 'none';
+            document.getElementById('editBillNo').innerText = editingBill?.bill_no || '';
+            document.getElementById('checkoutBtn').innerText = editingBill ? `Save changes to ${editingBill.bill_no} & Print` : 'Complete Sale & Print Slip';
+        }
+
+        async function startEditBill(id) {
+            const bill = await findBill(id);
+            if (!bill) return;
+            if (bill.items.some(i => i.item_id == null || !inventory.some(x => x.id === i.item_id))) {
+                toast('An item on this bill was removed from stock, so it cannot be edited. Delete the bill and make a new one instead.', 6000);
+                return;
+            }
+            if (cart.length && !editingBill && !confirm('The counter has items on a new bill. Clear them and edit this old bill instead?')) return;
+            const qty = new Map(), prices = new Map();
+            bill.items.forEach(i => { qty.set(i.item_id, (qty.get(i.item_id) || 0) + i.qty); prices.set(i.item_id, Number(i.price)); });
+            editingBill = { id: bill.id, bill_no: bill.bill_no, qty, prices };
+
+            await openView('pos');
+            resetCounter();
+            cart = [...qty.keys()].map(itemId => {
+                const line = bill.items.find(i => i.item_id === itemId);
+                return { id: itemId, name: line.name, size: line.size, price: prices.get(itemId), qty: qty.get(itemId) };
+            });
+            document.getElementById('custName').value = bill.customer === 'Walk-in Customer' ? '' : bill.customer;
+            document.getElementById('custPhone').value = bill.phone || '';
+            document.getElementById('discVal').value = Number(bill.discount) || 0;
+            const isSplit = [bill.paid_cash, bill.paid_upi, bill.udhaar].filter(v => Number(v) > 0).length > 1;
+            setPayMode(isSplit ? 'Split' : bill.pay_mode);
+            if (isSplit) {
+                document.getElementById('splitCash').value = Number(bill.paid_cash) || '';
+                document.getElementById('splitUpi').value = Number(bill.paid_upi) || '';
+            }
+            renderCart();
             renderCatalog();
-            renderRecentBills();
-            toast(`Bill ${printed.bill_no} saved`);
+            showEditBanner();
+            toast(`Bill ${bill.bill_no} loaded for editing`);
+        }
+
+        function cancelEditBill() {
+            editingBill = null;
+            resetCounter();
+            renderCatalog();
+        }
+
+        async function deleteBill(id) {
+            const bill = await findBill(id);
+            if (!bill) return;
+            const pcs = bill.items.reduce((n, i) => n + i.qty, 0);
+            const cust = customers.find(c => c.id === bill.customer_id);
+            let msg = `Delete bill ${bill.bill_no} (${bill.customer}, ${inr(bill.total)})?\n\n${plural(pcs, 'piece goes', 'pieces go')} back into stock.`;
+            if (bill.udhaar > 0) msg += `\n${inr(bill.udhaar)} udhaar from this bill is removed from ${bill.customer}'s balance.`;
+            if (cust && bill.udhaar > 0 && cust.due - bill.udhaar < 0) msg += `\nThey have already paid more than they will owe, so they will be ${inr(bill.udhaar - cust.due)} in credit.`;
+            msg += '\n\nThis cannot be undone.';
+            if (!confirm(msg)) return;
+            const { error } = await db.rpc('delete_bill', { p_sale: id });
+            if (error) { fail(error, 'Deleting bill'); return; }
+            if (editingBill?.id === id) cancelEditBill();
+            await Promise.all([loadInventory(), loadSales(), loadCustomers()]);
+            refreshActiveView();
+            if (activeView === 'customers' && cust) openCustomer(cust.id);
+            toast(`Bill ${bill.bill_no} deleted, stock returned`);
         }
 
         // ================= INVENTORY =================
@@ -2466,7 +2608,7 @@
                 <div class="grid-2">
                     <div>
                         <h3 style="margin-bottom:6px;">Bills</h3>
-                        <ul class="list">${bills.length ? bills.map(b => `<li><b>${esc(b.bill_no)} · ${esc(payLabel(b))}</b><span>${when(b.created_at)} · ${inr(b.total)}<br>${esc((b.sale_items || []).map(i => `${i.name} (${i.size}) x${i.qty}`).join(', '))}</span></li>`).join('') : '<li class="muted">No bills</li>'}</ul>
+                        <ul class="list">${bills.length ? bills.map(b => `<li><b>${esc(b.bill_no)} · ${esc(payLabel(b))}</b><span>${when(b.created_at)} · ${inr(b.total)}<br>${esc((b.sale_items || []).map(i => `${i.name} (${i.size}) x${i.qty}`).join(', '))}${billActions(b.id)}</span></li>`).join('') : '<li class="muted">No bills</li>'}</ul>
                     </div>
                     <div>
                         <h3 style="margin-bottom:6px;">Udhaar payments received</h3>
@@ -2516,12 +2658,17 @@
                 tr.innerHTML = `
                     <td style="font-family: monospace; font-weight: bold; color: var(--accent);">${esc(inv.bill_no)}</td>
                     <td style="color: var(--muted); font-size: 11px;">${when(inv.created_at)}</td>
-                    <td><strong>${esc(inv.customer)}</strong></td>
+                    <td><strong>${esc(inv.customer)}</strong>${inv.edited_at ? ' <span class="bill-edited">edited</span>' : ''}</td>
                     <td class="hide-sm" style="font-size: 11px; color: var(--muted);">${esc(itemsStr)}</td>
                     <td><span class="pill">${esc(payLabel(inv))}</span></td>
                     <td style="font-weight: bold;">${inr(inv.total)}</td>
                     <td style="text-align: right;">
-                        <button type="button" class="btn btn-emerald btn-sm" onclick="sendWhatsApp(${inv.id})">WhatsApp</button>
+                        <div class="bill-acts" style="margin-top:0;">
+                            <button type="button" class="btn btn-emerald btn-sm" onclick="sendWhatsApp(${inv.id})">WhatsApp</button>
+                            <button type="button" class="btn btn-sm btn-light" onclick="reprintBill(${inv.id})">🖨 Reprint</button>
+                            <button type="button" class="btn btn-sm btn-light owner-only" onclick="startEditBill(${inv.id})">✏️ Edit</button>
+                            <button type="button" class="btn btn-sm btn-danger owner-only" onclick="deleteBill(${inv.id})">Delete</button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
