@@ -290,7 +290,18 @@
         @media print {
             body * { visibility: hidden; }
             #receiptArea, #receiptArea * { visibility: visible; color: #000 !important; }
-            #receiptArea { position: absolute; left: 0; top: 0; width: 78mm; padding: 4px; font-size: 11px; background: #fff; }
+            /* 58 mm thermal roll: 48 mm (384 dots) printable, so the slip is 48 mm wide with no page margin */
+            #receiptArea { position: absolute; left: 0; top: 0; width: 48mm; padding: 0 0 4mm; font-size: 10px; line-height: 1.3; background: #fff; font-family: Arial, Helvetica, sans-serif; }
+            #receiptArea p { margin: 1px 0; }
+            #receiptArea table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            #receiptArea th, #receiptArea td { padding: 2px 0 !important; background: none !important; border: 0 !important; font-size: 10px; letter-spacing: 0; text-transform: none; }
+            #receiptArea thead tr { border-bottom: 1px solid #000 !important; }
+            /* Only the slip takes paper: no blank feed after it */
+            body.print-receipt { background: #fff !important; }
+            body.print-receipt > *:not(#receiptArea) { display: none !important; }
+            #receiptArea th:nth-child(1), #receiptArea td:nth-child(1) { width: 60%; text-align: left; word-break: break-word; }
+            #receiptArea th:nth-child(2), #receiptArea td:nth-child(2) { width: 12%; text-align: center; }
+            #receiptArea th:nth-child(3), #receiptArea td:nth-child(3) { width: 28%; text-align: right; }
             body.print-labels .shell, body.print-labels #receiptArea, body.print-labels #toast { display: none !important; }
             body.print-labels #labelSheet { display: block; }
             body.print-labels #labelSheet.sheet-a4 { display: grid; }
@@ -1819,9 +1830,15 @@
             });
 
             const recBox = document.getElementById('receiptArea');
+            let pageStyle = document.getElementById('receiptPageStyle');
+            if (!pageStyle) { pageStyle = document.createElement('style'); pageStyle.id = 'receiptPageStyle'; document.head.appendChild(pageStyle); }
+            pageStyle.textContent = '@page { size: 58mm auto; margin: 0; }';
             recBox.style.display = 'block';
+            document.body.classList.add('print-receipt');
             window.print();
+            document.body.classList.remove('print-receipt');
             recBox.style.display = 'none';
+            pageStyle.textContent = '';
         }
 
         function resetCounter() {
