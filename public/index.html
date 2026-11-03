@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         /* Professional retail theme: navy sidebar, indigo accent, soft cards. Sidebar on desktop, bottom tabs on phones. */
         :root {
@@ -287,21 +288,39 @@
         .sheet-roll .lbl { break-after: page; page-break-after: always; }
         .sheet-roll .lbl:last-child { break-after: auto; page-break-after: auto; }
 
+        /* Bill slip for the 58 mm thermal roll: 48 mm (384 dots) printable, black only */
+        #receiptArea { position: absolute; left: 0; top: 0; width: 48mm; padding: 0 0 3mm; font-size: 9px; line-height: 1.25; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+        #receiptArea * { color: #000 !important; }
+        #receiptArea p { margin: 1px 0; }
+        #receiptArea .r-head { text-align: center; padding-bottom: 3px; border-bottom: 1px dashed #000; }
+        #receiptArea .r-logo { width: 17mm; height: auto; display: block; margin: 0 auto 1px; }
+        #receiptArea .r-shop { font-size: 12.5px; font-weight: 900; letter-spacing: .2px; line-height: 1.1; margin: 1px 0; }
+        #receiptArea .r-row { display: flex; justify-content: space-between; gap: 4px; }
+        #receiptArea .r-meta { padding: 3px 0; border-bottom: 1px dashed #000; }
+        #receiptArea .r-copy { text-align: center; font-weight: bold; }
+        #receiptArea table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 3px 0; }
+        #receiptArea th, #receiptArea td { padding: 1.5px 0 !important; background: none !important; border: 0 !important; font-size: 9px; letter-spacing: 0; text-transform: none; vertical-align: top; }
+        #receiptArea thead th { border-bottom: 1px solid #000 !important; font-weight: bold; }
+        #receiptArea th:nth-child(1), #receiptArea td:nth-child(1) { width: 39%; text-align: left; word-break: break-word; }
+        #receiptArea th:nth-child(2), #receiptArea td:nth-child(2) { width: 15%; text-align: center; }
+        #receiptArea th:nth-child(3), #receiptArea td:nth-child(3) { width: 9%; text-align: center; }
+        #receiptArea th:nth-child(4), #receiptArea td:nth-child(4) { width: 17%; text-align: right; }
+        #receiptArea th:nth-child(5), #receiptArea td:nth-child(5) { width: 20%; text-align: right; }
+        #receiptArea .r-total { border-top: 1px dashed #000; padding-top: 3px; text-align: right; }
+        #receiptArea .r-total .big { font-size: 13px; font-weight: 900; }
+        #receiptArea .r-bank { border-top: 1px dashed #000; margin-top: 4px; padding-top: 3px; font-size: 8.5px; }
+        #receiptArea .r-qr { text-align: center; margin-top: 3px; }
+        #receiptArea .r-qr canvas { display: none !important; }
+        #receiptArea .r-qr img { width: 26mm !important; height: 26mm !important; display: block !important; margin: 0 auto; }
+        #receiptArea .r-sign { text-align: right; margin-top: 9mm; font-size: 8.5px; }
+        #receiptArea .r-foot { text-align: center; margin-top: 4px; font-size: 8.5px; }
+
         @media print {
             body * { visibility: hidden; }
             #receiptArea, #receiptArea * { visibility: visible; color: #000 !important; }
-            /* 58 mm thermal roll: 48 mm (384 dots) printable, so the slip is 48 mm wide with no page margin */
-            #receiptArea { position: absolute; left: 0; top: 0; width: 48mm; padding: 0 0 4mm; font-size: 10px; line-height: 1.3; background: #fff; font-family: Arial, Helvetica, sans-serif; }
-            #receiptArea p { margin: 1px 0; }
-            #receiptArea table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            #receiptArea th, #receiptArea td { padding: 2px 0 !important; background: none !important; border: 0 !important; font-size: 10px; letter-spacing: 0; text-transform: none; }
-            #receiptArea thead tr { border-bottom: 1px solid #000 !important; }
-            /* Only the slip takes paper: no blank feed after it */
             body.print-receipt { background: #fff !important; }
+            /* Only the slip takes paper: no blank feed after it */
             body.print-receipt > *:not(#receiptArea) { display: none !important; }
-            #receiptArea th:nth-child(1), #receiptArea td:nth-child(1) { width: 60%; text-align: left; word-break: break-word; }
-            #receiptArea th:nth-child(2), #receiptArea td:nth-child(2) { width: 12%; text-align: center; }
-            #receiptArea th:nth-child(3), #receiptArea td:nth-child(3) { width: 28%; text-align: right; }
             body.print-labels .shell, body.print-labels #receiptArea, body.print-labels #toast { display: none !important; }
             body.print-labels #labelSheet { display: block; }
             body.print-labels #labelSheet.sheet-a4 { display: grid; }
@@ -951,35 +970,42 @@
 
     <datalist id="brandList"></datalist>
 
-    <!-- Hidden Thermal Printable Slip -->
+    <!-- Hidden thermal bill slip (58 mm roll), laid out like the shop's paper bill book -->
     <div id="receiptArea" style="display:none;">
-        <div style="text-align: center; border-bottom: 1px dashed black; padding-bottom: 5px;">
-            <h3 style="margin: 0; font-size: 13px;">GARMENT STORE</h3>
-            <p style="margin: 2px 0;">Clothing & Apparel Retail</p>
-            <p id="recDate" style="font-size: 9px;"></p>
+        <div class="r-head">
+            <svg class="r-logo" viewBox="0 0 120 64" aria-hidden="true">
+                <path d="M53 10c0-5 3-8 7-8s7 3 7 7c0 4-4 5-6 7l-1 4" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+                <path d="M60 20 4 60h112L60 20z" fill="none" stroke="#000" stroke-width="3.5" stroke-linejoin="round"/>
+                <path d="M53 27l3 4 4-5 4 5 3-4-1 7H54z" fill="#000"/>
+                <text x="60" y="56" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="21" fill="#000">SH</text>
+            </svg>
+            <p class="r-shop" id="recShop"></p>
+            <p id="recAddr"></p>
+            <p>Mob. <span id="recShopMob"></span></p>
         </div>
-        <div style="padding: 4px 0; border-bottom: 1px dashed black; font-size: 10px;">
-            <p>Bill: <span id="recBillId"></span></p>
-            <p id="recCopy" style="font-weight: bold;"></p>
-            <p>Customer: <span id="recCustomer"></span></p>
+        <div class="r-meta">
+            <p id="recCopy" class="r-copy"></p>
+            <div class="r-row"><span>Bill: <b id="recBillId"></b></span><span id="recDate"></span></div>
+            <p>Name: <span id="recCustomer"></span></p>
+            <p id="recMobRow">Mob: <span id="recMob"></span></p>
         </div>
-        <table style="width: 100%; margin: 6px 0; font-size: 10px;">
-            <thead>
-                <tr style="border-bottom: 1px solid black;">
-                    <th style="padding: 2px 0;">Item</th>
-                    <th style="padding: 2px 0;">Qty</th>
-                    <th style="padding: 2px 0; text-align: right;">Price</th>
-                </tr>
-            </thead>
+        <table>
+            <thead><tr><th>Item</th><th>HSN</th><th>Qty</th><th>Rate</th><th>Amt</th></tr></thead>
             <tbody id="recItems"></tbody>
         </table>
-        <div style="border-top: 1px dashed black; padding-top: 4px; text-align: right; font-size: 11px;">
-            <p id="recDiscRow" style="font-size: 9px;"></p>
-            <p><strong>Total: ₹<span id="recTotal">0</span></strong></p>
-            <p style="font-size: 9px;">Payment: <span id="recPay"></span></p>
-            <p id="recDue" style="font-size: 9px;"></p>
+        <div class="r-total">
+            <p id="recDiscRow"></p>
+            <p class="big">Total: ₹<span id="recTotal">0</span></p>
+            <p>Payment: <span id="recPay"></span></p>
+            <p id="recDue"></p>
         </div>
-        <p style="text-align: center; margin-top: 8px; font-size: 9px;">Thank you! Visit again.</p>
+        <div class="r-bank">
+            <p><b>Bank Details</b></p>
+            <p id="recBank"></p>
+            <div class="r-qr" id="recQrBox"><div id="recQr"></div><p id="recQrNote"></p></div>
+        </div>
+        <div class="r-sign"><p id="recSignShop"></p><p>Authorized Signatory</p></div>
+        <p class="r-foot">Thank you! Visit again.</p>
     </div>
 
     <script>
@@ -990,6 +1016,19 @@
         document.addEventListener('DOMContentLoaded', () => {
             try { const v = localStorage.getItem('labelSize'); if (v) document.getElementById('labelSize').value = v; } catch (e) {}
         });
+
+        // Printed on every bill slip (same details as the shop's paper bill book)
+        const SHOP = {
+            name: 'SHREE SHYAM COLLECTIONS',
+            address: 'Parsuram Square, Station Road, Akodia Mandi',
+            mobile: '9174002399',
+            bank: ['STATE BANK OF INDIA, Akodia', 'A/c No: 44493724229', 'IFSC: SBIN0012190', 'A/c Holder: VIJENDRA HADA'],
+            upiId: ''   // e.g. 9174002399@ybl. When set, the slip prints a scan-to-pay QR.
+        };
+        // HSN codes for garments (chapter 61 knitted / 62 woven), by item type
+        const HSN = { 'Shirt': '6205', 'T-Shirt': '6109', 'Jeans': '6203', 'Trouser': '6203', 'Cargo': '6203', 'Shorts': '6203',
+            'Kurta': '6211', 'Short Kurta': '6211', 'Jacket': '6201', 'Track Pant': '6103', 'Sweatshirt': '6110' };
+        const hsnFor = itemId => HSN[inventory.find(i => i.id === itemId)?.type] || '';
 
         const TYPES = ['Shirt', 'T-Shirt', 'Jeans', 'Trouser', 'Cargo', 'Kurta', 'Short Kurta', 'Jacket', 'Track Pant', 'Shorts', 'Sweatshirt', 'Other'];
         // Ready-made clothing templates: pick one to fill type, category and the usual size set
@@ -1812,11 +1851,29 @@
         // Thermal slip for a new, edited or reprinted bill
         function printReceipt(bill, copyNote) {
             const cust = customers.find(c => c.id === bill.customer_id);
+            const set = (id, v) => { document.getElementById(id).innerText = v; };
+            set('recShop', SHOP.name); set('recAddr', SHOP.address); set('recShopMob', SHOP.mobile); set('recSignShop', SHOP.name);
+            set('recBank', SHOP.bank.join('\n'));
             document.getElementById('recBillId').innerText = bill.bill_no;
             document.getElementById('recCopy').innerText = copyNote || '';
             document.getElementById('recDate').innerText = when(bill.created_at);
             document.getElementById('recCustomer').innerText = bill.customer;
+            document.getElementById('recMob').innerText = bill.phone || '';
+            document.getElementById('recMobRow').style.display = bill.phone ? '' : 'none';
             document.getElementById('recTotal').innerText = Number(bill.total);
+
+            // Scan-to-pay QR: asks for the udhaar left on this bill, otherwise an open amount
+            const qrBox = document.getElementById('recQr');
+            qrBox.innerHTML = '';
+            const canQr = SHOP.upiId && window.QRCode;
+            document.getElementById('recQrBox').style.display = canQr ? '' : 'none';
+            if (canQr) {
+                const due = Number(bill.udhaar) || 0;
+                const upi = `upi://pay?pa=${encodeURIComponent(SHOP.upiId)}&pn=${encodeURIComponent(SHOP.name)}&cu=INR` +
+                    (due > 0 ? `&am=${due.toFixed(2)}&tn=${encodeURIComponent('Bill ' + bill.bill_no)}` : '');
+                new QRCode(qrBox, { text: upi, width: 196, height: 196, correctLevel: QRCode.CorrectLevel.M });
+                document.getElementById('recQrNote').innerText = `Scan to pay (UPI) · ${SHOP.upiId}` + (due > 0 ? ` · ₹${due}` : '');
+            }
             document.getElementById('recPay').innerText = payLabel(bill);
             document.getElementById('recDiscRow').innerText = Number(bill.discount) > 0 ? `Subtotal ₹${Number(bill.subtotal)} - Discount ₹${Number(bill.discount)}` : '';
             document.getElementById('recDue').innerText = cust && cust.due > 0 ? `Total udhaar due: ₹${cust.due}` : '';
@@ -1825,7 +1882,7 @@
             tbody.innerHTML = '';
             bill.items.forEach(it => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${esc(it.name)} (${esc(it.size)})</td><td>${it.qty}</td><td style="text-align: right;">₹${Number(it.price) * it.qty}</td>`;
+                tr.innerHTML = `<td>${esc(it.name)} (${esc(it.size)})</td><td>${hsnFor('item_id' in it ? it.item_id : it.id)}</td><td>${it.qty}</td><td>${Number(it.price)}</td><td>${Number(it.price) * it.qty}</td>`;
                 tbody.appendChild(tr);
             });
 
@@ -1834,9 +1891,7 @@
             if (!pageStyle) { pageStyle = document.createElement('style'); pageStyle.id = 'receiptPageStyle'; document.head.appendChild(pageStyle); }
             // The page must be exactly as tall as the slip, or the printer feeds paper for a full A4/297 mm page
             recBox.style.display = 'block';
-            recBox.style.width = '48mm';
             const slipMm = Math.ceil(recBox.scrollHeight * 25.4 / 96) + 8;
-            recBox.style.width = '';
             pageStyle.textContent = `@page { size: 58mm ${Math.max(slipMm, 50)}mm; margin: 0; }`;
             document.body.classList.add('print-receipt');
             window.print();
@@ -2641,7 +2696,7 @@
         function remindUdhaar(id) {
             const c = customers.find(x => x.id === id);
             if (!c || !c.phone) return;
-            const msg = `Namaste ${c.name}, your pending amount at GARMENT STORE is ₹${c.due}. Please pay at your convenience. Thank you!`;
+            const msg = `Namaste ${c.name}, your pending amount at ${SHOP.name} is ₹${c.due}. Please pay at your convenience. Thank you!`;
             window.open(`https://wa.me/91${c.phone.slice(-10)}?text=${encodeURIComponent(msg)}`, '_blank');
         }
 
@@ -2682,7 +2737,7 @@
         function sendWhatsApp(id) {
             const inv = sales.find(s => s.id === id);
             if (!inv) return;
-            let msg = `*GARMENT STORE INVOICE*\nInvoice: ${inv.bill_no}\nDate: ${when(inv.created_at)}\nCustomer: ${inv.customer}\n`;
+            let msg = `*${SHOP.name}*\nMob. ${SHOP.mobile}\nInvoice: ${inv.bill_no}\nDate: ${when(inv.created_at)}\nCustomer: ${inv.customer}\n`;
             inv.items.forEach(i => { msg += `${i.name} [${i.size}] x ${i.qty} = ₹${Number(i.price) * i.qty}\n`; });
             if (Number(inv.discount) > 0) msg += `Discount: ₹${Number(inv.discount)}\n`;
             msg += `*Total: ₹${inv.total}*\nPayment: ${payLabel(inv)}\nThank you for your visit!`;
