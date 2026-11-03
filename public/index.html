@@ -1832,8 +1832,12 @@
             const recBox = document.getElementById('receiptArea');
             let pageStyle = document.getElementById('receiptPageStyle');
             if (!pageStyle) { pageStyle = document.createElement('style'); pageStyle.id = 'receiptPageStyle'; document.head.appendChild(pageStyle); }
-            pageStyle.textContent = '@page { size: 58mm auto; margin: 0; }';
+            // The page must be exactly as tall as the slip, or the printer feeds paper for a full A4/297 mm page
             recBox.style.display = 'block';
+            recBox.style.width = '48mm';
+            const slipMm = Math.ceil(recBox.scrollHeight * 25.4 / 96) + 8;
+            recBox.style.width = '';
+            pageStyle.textContent = `@page { size: 58mm ${Math.max(slipMm, 50)}mm; margin: 0; }`;
             document.body.classList.add('print-receipt');
             window.print();
             document.body.classList.remove('print-receipt');
